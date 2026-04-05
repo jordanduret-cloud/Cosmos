@@ -582,158 +582,262 @@ function _buildGiantStars(){
   });
 }
 
-// ── NÉBULEUSES ─────────────────────────────────────────────────
+// ── NÉBULEUSES PHOTORÉALISTES ──────────────────────────────────
+// Rendu volumétrique multi-couches avec couleurs NASA/Hubble
 function _buildNebulae(){
   nebulaGroup=new THREE.Group(); galGroup.add(nebulaGroup);
 
+  // Génère une sprite texture de nuage lumineux
+  function makeCloudTex(W,H,cols,shape){
+    const c=document.createElement('canvas'); c.width=W; c.height=H;
+    const ctx=c.getContext('2d');
+    if(shape==='radial'){
+      const grd=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W/2);
+      cols.forEach((col,i)=>{grd.addColorStop(i/(cols.length-1),col);});
+      ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
+    } else {
+      // Bruit de nuage
+      const id=ctx.createImageData(W,H);
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        const u=x/W*4,v=y/H*4;
+        const n=NOISE.warpedFbm(u,v,6,Math.floor(Math.random()*100));
+        const i=(y*W+x)*4;
+        const r=parseInt(cols[0].slice(1,3),16),g=parseInt(cols[0].slice(3,5),16),b=parseInt(cols[0].slice(5,7),16);
+        const a=Math.max(0,n-.3)*1.4;
+        id.data[i]=r;id.data[i+1]=g;id.data[i+2]=b;id.data[i+3]=Math.min(255,a*255);
+      }
+      ctx.putImageData(id,0,0);
+    }
+    return new THREE.CanvasTexture(c);
+  }
+
+  // Génère un billboard de nébuleuse haute résolution
+  function makeNebulaBillboard(W,H,drawFn){
+    const c=document.createElement('canvas'); c.width=W; c.height=H;
+    drawFn(c.getContext('2d'),W,H);
+    return new THREE.CanvasTexture(c);
+  }
+
   const NEBULAE=[
     {
-      name:'Piliers de la Création (M16)',
-      key:'pillars',
-      pos:[GC-200000,-8000,-650000],
-      type:'émission', cols:[0xff3366,0xff6633,0x4488ff],
-      radius:45000, N:80000,
-      info:'🌟 PILIERS DE LA CRÉATION\n\nNébuleuse de l\'Aigle (M16) · IC 4703\nDistance: 6 500-7 000 al\nConstellation: Serpent (Serpens)\n\nFormation d\'étoiles active:\n• 3 colonnes de gaz et poussière\n• H: 5 al · L: 3 al · P: 0.5 al\n• Régions HII éclairées par NGC 6611\n• Nouveaux-nés stellaires (EGGs)\n\nPhotographié HST 1995 (révolution!)\nRe-photographié JWST 2022 (infrarouge)\n\nErosion par rayonnement UV\n→ Disparaîtront dans ~3 Ma',
-      shape:'pillars',
+      name:'Piliers de la Création (M16)', key:'pillars',
+      pos:[GC-200000,-8000,-650000], scale:45000,
+      info:'🌟 PILIERS DE LA CRÉATION — M16\n\nDistance: ~6 500-7 000 al\nConstellation: Serpent (Serpens)\n\nColonnes de gaz et poussière:\n• H: ~5 al · L: ~3 al\n• Ionisées par NGC 6611 (amas OB)\n• EGGs: nouveaux-nés stellaires\n\nHST 1995 → photo emblématique NASA\nJWST 2022 → infrarouge révèle étoiles cachées\n\nÉrosion photoionisation → disparaîtront dans ~3 Ma',
+      draw:(ctx,W,H)=>{
+        ctx.clearRect(0,0,W,H);
+        // Fond nébuleux rose/rouge (HII)
+        const bg=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W*.7);
+        bg.addColorStop(0,'rgba(180,30,80,0.4)');bg.addColorStop(.5,'rgba(120,15,50,0.25)');bg.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+        // Étoiles en formation (points brillants)
+        for(let i=0;i<80;i++){const sx=Math.random()*W,sy=Math.random()*H;const sr=1+Math.random()*2;const sg2=ctx.createRadialGradient(sx,sy,0,sx,sy,sr*3);sg2.addColorStop(0,'rgba(255,255,220,0.9)');sg2.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=sg2;ctx.beginPath();ctx.arc(sx,sy,sr*3,0,Math.PI*2);ctx.fill();}
+        // Pilier 1 (central, le plus grand)
+        function drawPillar(cx,baseY,topY,w,col1,col2){
+          const grad=ctx.createLinearGradient(cx-w,0,cx+w,0);
+          grad.addColorStop(0,'rgba(0,0,0,0)');grad.addColorStop(.2,col1);grad.addColorStop(.5,col2);grad.addColorStop(.8,col1);grad.addColorStop(1,'rgba(0,0,0,0)');
+          ctx.fillStyle=grad;
+          ctx.beginPath();ctx.moveTo(cx-w,baseY);ctx.bezierCurveTo(cx-w*1.2,baseY-H*.1,cx-w*.6,topY+H*.15,cx-w*.3,topY);ctx.bezierCurveTo(cx,topY-H*.02,cx+w*.3,topY,cx+w*.6,topY+H*.15);ctx.bezierCurveTo(cx+w*1.2,baseY-H*.1,cx+w,baseY,cx-w,baseY);ctx.fill();
+          // Bord lumineux (ionisation)
+          ctx.strokeStyle='rgba(255,150,80,0.6)';ctx.lineWidth=2;ctx.stroke();
+          // Étoiles naissantes au sommet
+          const glow=ctx.createRadialGradient(cx,topY,0,cx,topY,w);
+          glow.addColorStop(0,'rgba(255,220,100,0.5)');glow.addColorStop(1,'rgba(0,0,0,0)');
+          ctx.fillStyle=glow;ctx.beginPath();ctx.arc(cx,topY,w,0,Math.PI*2);ctx.fill();
+        }
+        drawPillar(W*.42,H*.95,H*.12,W*.09,'rgba(50,15,5,0.92)','rgba(80,25,8,0.88)');
+        drawPillar(W*.65,H*.95,H*.3, W*.07,'rgba(40,12,4,0.88)','rgba(65,20,6,0.85)');
+        drawPillar(W*.26,H*.95,H*.45,W*.055,'rgba(35,10,3,0.85)','rgba(55,18,5,0.82)');
+        // Lueur de fond chaude
+        const hl=ctx.createRadialGradient(W*.5,H*.5,0,W*.5,H*.5,W*.45);
+        hl.addColorStop(0,'rgba(255,80,30,0.08)');hl.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=hl;ctx.fillRect(0,0,W,H);
+      }
     },
     {
-      name:'Nébuleuse du Crabe (M1)',
-      key:'crab',
-      pos:[GC+80000,12000,-480000],
-      type:'remnant', cols:[0x4488ff,0xff4422,0xffaa22],
-      radius:12000, N:50000,
-      info:'💥 NÉBULEUSE DU CRABE — M1\n\nReste de supernova SN 1054\nObservée par les Chinois le 4 juillet 1054\nBrillait comme Vénus pendant 23 jours!\n\nDistance: ~6 500 al\nDimensions: 11 × 7 al\nVitesse d\'expansion: ~1 500 km/s\n\nPulsar central:\n• Étoile à neutrons: 28-30 km Ø\n• Rotation: 30.2 fois/seconde!\n• Champ magnétique: 10¹² Gauss\n• Émet en radio, X, gamma\n\nL\'une des sources radio les + brillantes du ciel\nRéférence d\'étalonnage pour les télescopes X',
-      shape:'explosion',
+      name:'Nébuleuse du Crabe (M1)', key:'crab',
+      pos:[GC+80000,12000,-480000], scale:12000,
+      info:'💥 NÉBULEUSE DU CRABE — M1\n\nReste de supernova SN 1054\nObservée par les Chinois en 1054\nBrilla 23 jours en plein jour!\n\nDistance: ~6 500 al · 11×7 al\nVitesse expansion: ~1 500 km/s\n\nPulsar central:\n• Ø: 28-30 km · Masse: 1.4 M☉\n• Rotation: 30.2 tours/seconde\n• Champ B: 10¹² Gauss\n• Émet radio, X, gamma\n\nSynchrotron radiation (électrons\nspiraux autour des lignes de champ)',
+      draw:(ctx,W,H)=>{
+        ctx.clearRect(0,0,W,H);
+        // Filaments rouge-orange (Hα)
+        const drawFilament=(x1,y1,x2,y2,w,col)=>{const g=ctx.createLinearGradient(x1,y1,x2,y2);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(.3,col);g.addColorStop(.7,col);g.addColorStop(1,'rgba(0,0,0,0)');ctx.strokeStyle=g;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x1,y1);const mx=x1+(x2-x1)*.5+(Math.random()-.5)*W*.15,my=y1+(y2-y1)*.5+(Math.random()-.5)*H*.15;ctx.quadraticCurveTo(mx,my,x2,y2);ctx.stroke();};
+        // Fond bleu synchrotron (O[III])
+        const syn=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W*.42);
+        syn.addColorStop(0,'rgba(80,140,255,0.35)');syn.addColorStop(.6,'rgba(40,80,200,0.2)');syn.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=syn;ctx.fillRect(0,0,W,H);
+        // Filaments rouge-orangé
+        for(let i=0;i<60;i++){const a=Math.random()*Math.PI*2,r1=W*.05+Math.random()*W*.08,r2=W*.25+Math.random()*W*.18;drawFilament(W/2+Math.cos(a)*r1,H/2+Math.sin(a)*r1,W/2+Math.cos(a+(.3+Math.random()*.6))*r2,H/2+Math.sin(a+(.3+Math.random()*.6))*r2,1+Math.random()*2,'rgba(255,'+(80+Math.floor(Math.random()*80))+',20,0.8)');}
+        // Pulsar central brillant
+        const pcen=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W*.04);
+        pcen.addColorStop(0,'rgba(255,255,255,1)');pcen.addColorStop(.4,'rgba(180,210,255,0.8)');pcen.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=pcen;ctx.beginPath();ctx.arc(W/2,H/2,W*.04,0,Math.PI*2);ctx.fill();
+      }
     },
     {
-      name:'Nébuleuse d\'Orion (M42)',
-      key:'orion',
-      pos:[GC-50000,-15000,-460000],
-      type:'émission', cols:[0xff3388,0x4499ff,0xffcc44],
-      radius:35000, N:70000,
-      info:'✨ NÉBULEUSE D\'ORION — M42\n\nNébuleuse de formation d\'étoiles\nDistance: ~1 344 al\nVisible à l\'œil nu (épée d\'Orion)\n\nDimensions: ~40 al × 30 al\nTrapèze: 4 étoiles O/B ultra-chaudes\n→ Ionisent la nébuleuse (région HII)\n\nFormation d\'étoiles active:\n• Disques protoplanétaires (proplyds)\n• Plusieurs centaines de jeunes étoiles\n• Étoiles T Tauri (stade pré-main séquence)\n\nParties de la nébuleuse d\'Orion:\n• M42 (grande nébuleuse)\n• M43 (De Mairan)\n• Boucle de Barnard (complète)',
-      shape:'cloud',
+      name:'Nébuleuse d\'Orion (M42)', key:'orion',
+      pos:[GC-50000,-15000,-460000], scale:35000,
+      info:'✨ NÉBULEUSE D\'ORION — M42\n\nNébuleuse de formation d\'étoiles\nDistance: ~1 344 al · Visible à l\'œil nu\n\nDimensions: ~40×30 al\nLe Trapèze: 4 étoiles O ultra-chaudes\n→ Ionisent le gaz (région HII)\n\nDisques protoplanétaires (proplyds)\nCentaines de jeunes étoiles\nÉtoiles T Tauri (pré-main séquence)\n\nM42 + M43 (De Mairan) + Boucle de Barnard',
+      draw:(ctx,W,H)=>{
+        ctx.clearRect(0,0,W,H);
+        // Fond rose-rouge large
+        const bg=ctx.createRadialGradient(W*.45,H*.55,0,W*.45,H*.55,W*.65);
+        bg.addColorStop(0,'rgba(255,100,80,0.45)');bg.addColorStop(.35,'rgba(200,50,80,0.3)');bg.addColorStop(.65,'rgba(100,20,60,0.15)');bg.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+        // Zone centrale bleue-verte (O[III])
+        const c2=ctx.createRadialGradient(W*.42,H*.48,0,W*.42,H*.48,W*.22);
+        c2.addColorStop(0,'rgba(180,240,255,0.55)');c2.addColorStop(.5,'rgba(80,180,255,0.3)');c2.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=c2;ctx.fillRect(0,0,W,H);
+        // Nuages de poussière sombres
+        ctx.fillStyle='rgba(15,5,2,0.4)';
+        ctx.beginPath();ctx.ellipse(W*.38,H*.68,W*.12,H*.08,-.3,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.ellipse(W*.58,H*.42,W*.09,H*.06,.5,0,Math.PI*2);ctx.fill();
+        // Le Trapèze
+        [[.42,.46],[.44,.48],[.41,.48],[.43,.47]].forEach(([fx,fy])=>{const tg=ctx.createRadialGradient(fx*W,fy*H,0,fx*W,fy*H,W*.025);tg.addColorStop(0,'rgba(255,255,200,0.95)');tg.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=tg;ctx.beginPath();ctx.arc(fx*W,fy*H,W*.025,0,Math.PI*2);ctx.fill();});
+        // Filaments
+        for(let i=0;i<30;i++){const a=Math.random()*Math.PI*2,r=W*(.12+Math.random()*.28);ctx.strokeStyle=`rgba(255,${100+Math.floor(Math.random()*80)},${50+Math.floor(Math.random()*60)},${.4+Math.random()*.4})`;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(W*.43,H*.47);ctx.lineTo(W*.43+Math.cos(a)*r,H*.47+Math.sin(a)*r);ctx.stroke();}
+      }
     },
     {
-      name:'Nébuleuse de la Rosette (NGC 2244)',
-      key:'rosette',
-      pos:[GC+100000,5000,-380000],
-      type:'émission', cols:[0xff2244,0xff6644,0x3344cc],
-      radius:28000, N:55000,
-      info:'🌹 NÉBULEUSE DE LA ROSETTE\n\nNGC 2244 / 2237-2246\nDistance: ~5 200 al\nConstellation: Licorne (Monoceros)\n\nDimensions: ~130 al de diamètre\nMasse: ~10 000 M☉\nBelle forme annulaire caractéristique\n\nAmas stellaire central NGC 2244:\n• Étoiles O/B jeunes et chaudes\n• Vents stellaires crée cavité centrale\n• Ionisent le gaz environnant\n\nRégion de formation d\'étoiles active\nGlobules de Bok présents\n(futures étoiles en formation)',
-      shape:'ring',
+      name:'Nébuleuse de la Rosette (NGC 2244)', key:'rosette',
+      pos:[GC+100000,5000,-380000], scale:28000,
+      info:'🌹 NÉBULEUSE DE LA ROSETTE\nNGC 2244/2237 · Distance: ~5 200 al\nConstellation: Licorne\nDimensions: ~130 al Ø · Masse: ~10 000 M☉\n\nAmas NGC 2244: étoiles OB jeunes\nVents stellaires → cavité centrale\nGlobules de Bok: futures étoiles\nFormes en "pétales" distinctives',
+      draw:(ctx,W,H)=>{
+        ctx.clearRect(0,0,W,H);
+        // Anneau externe rose
+        for(let a=0;a<Math.PI*2;a+=.06){const r1=W*.28,r2=W*.42;const x1=W/2+Math.cos(a)*r1,y1=H/2+Math.sin(a)*r1;const x2=W/2+Math.cos(a)*r2,y2=H/2+Math.sin(a)*r2;const lg=ctx.createLinearGradient(x1,y1,x2,y2);lg.addColorStop(0,'rgba(255,80,120,0.6)');lg.addColorStop(.5,'rgba(200,40,90,0.45)');lg.addColorStop(1,'rgba(0,0,0,0)');ctx.strokeStyle=lg;ctx.lineWidth=W*.08;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
+        // Centre sombre (cavité creusée par vents stellaires)
+        const dc=ctx.createRadialGradient(W/2,H/2,W*.05,W/2,H/2,W*.26);
+        dc.addColorStop(0,'rgba(0,0,0,0.85)');dc.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=dc;ctx.fillRect(0,0,W,H);
+        // Étoiles centrales (NGC 2244)
+        for(let i=0;i<20;i++){const a=Math.random()*Math.PI*2,r=Math.random()*W*.12;const sx=W/2+Math.cos(a)*r,sy=H/2+Math.sin(a)*r;const sg=ctx.createRadialGradient(sx,sy,0,sx,sy,3);sg.addColorStop(0,'rgba(200,220,255,0.9)');sg.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=sg;ctx.beginPath();ctx.arc(sx,sy,3,0,Math.PI*2);ctx.fill();}
+        // Teinte O[III] bleue dans l'anneau
+        const oring=ctx.createRadialGradient(W/2,H/2,W*.27,W/2,H/2,W*.34);
+        oring.addColorStop(0,'rgba(80,160,255,0.2)');oring.addColorStop(.5,'rgba(40,100,200,0.35)');oring.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=oring;ctx.fillRect(0,0,W,H);
+      }
     },
     {
-      name:'Nébuleuse Tête de Cheval (IC 434)',
-      key:'horsehead',
-      pos:[GC-55000,5000,-470000],
-      type:'sombre', cols:[0x220011,0x441122,0x3322aa],
-      radius:8000, N:25000,
-      info:'🐴 NÉBULEUSE TÊTE DE CHEVAL\n\nIC 434 / Barnard 33\nDistance: ~1 375 al (près de la Ceinture d\'Orion)\nConstellation: Orion\n\nNébuleuse sombre projetée sur\nla nébuleuse d\'émission IC 434 (rouge)\n\nDimensions: ~4 al de hauteur\nSilhouette iconique en tête de cheval\n\nFormation d\'étoiles en cours:\n• Colonnes de gaz et poussière\n• Érosion lente par rayonnement UV\n• Durera encore ~5 millions d\'années\n\nDifficile à observer visuellement\n→ Mieux en infrarouge (JWST)',
-      shape:'horse',
+      name:'Nébuleuse du Voile (NGC 6960)', key:'veil',
+      pos:[GC+95000,18000,-220000], scale:30000,
+      info:'💫 NÉBULEUSE DU VOILE — Cygnus Loop\nNGC 6960/6992 · Distance: ~2 400 al\nConstellation: Cygne\n\nReste de supernova vieille de ~10 000-20 000 ans\nÉtoile progénitrice: ~20 M☉\nDiamètre: ~130 al\nExpansion: ~170 km/s\n\nFilaments exquis: O[III]=bleu, Hα=rouge\nDentelles orientale (NGC 6992) et occidentale',
+      draw:(ctx,W,H)=>{
+        ctx.clearRect(0,0,W,H);
+        // Filaments bleus et rouges entremêlés
+        const drawWisps=(N,col,width)=>{for(let i=0;i<N;i++){const x1=Math.random()*W,y1=Math.random()*H;const len=W*(.2+Math.random()*.5);const a=Math.random()*Math.PI*2+Math.PI*.25;const cx2=x1+Math.cos(a+.3)*len*.5,cy2=y1+Math.sin(a+.3)*len*.5;const x2=x1+Math.cos(a)*len,y2=y1+Math.sin(a)*len;ctx.strokeStyle=col;ctx.lineWidth=width;ctx.globalAlpha=.3+Math.random()*.5;ctx.beginPath();ctx.moveTo(x1,y1);ctx.quadraticCurveTo(cx2,cy2,x2,y2);ctx.stroke();}ctx.globalAlpha=1;};
+        drawWisps(80,'rgba(80,160,255,1)',1.5);   // O[III] bleu
+        drawWisps(60,'rgba(255,60,40,1)',1.2);    // Hα rouge
+        drawWisps(40,'rgba(100,255,180,1)',0.8);  // O[III] vert
+        // Halo diffus
+        const halo=ctx.createRadialGradient(W/2,H/2,W*.1,W/2,H/2,W*.52);
+        halo.addColorStop(0,'rgba(80,120,255,0.06)');halo.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=halo;ctx.fillRect(0,0,W,H);
+      }
     },
     {
-      name:'Nébuleuse du Voile (NGC 6960)',
-      key:'veil',
-      pos:[GC+95000,18000,-220000],
-      type:'remnant', cols:[0x4488ff,0x88ffcc,0xffaa44],
-      radius:30000, N:45000,
-      info:'💫 NÉBULEUSE DU VOILE\n\nCygnus Loop · NGC 6960/6992\nDistance: ~2 400 al · Constellation: Cygne\n\nReste de supernova vieille de\n~10 000-20 000 ans\nÉtoile progénitrice: ~20 M☉\n\nDimensions: ~130 al de diamètre\nOndes de choc se propageant\nà ~170 km/s dans le milieu interstellaire\n\nStructure filamenteuse exquise:\n• Dentelles orientale et occidentale\n• Couleurs: O[III] bleu, Hα rouge\n• Très bien résolu avec filtres\n\nL\'un des restes de SN les plus spectaculaires',
-      shape:'veil',
+      name:'Nébuleuse de la Lyre (M57)', key:'ring',
+      pos:[GC+35000,8000,-150000], scale:3000,
+      info:'💍 NÉBULEUSE DE LA LYRE — M57\nNébuleuse planétaire · Distance: ~2 000 al\nConstellation: Lyre\n\nNaine blanche centrale:\n• T: ~120 000 K · Rayon: ~0.015 R☉\n\nÂge: ~6 900 ans · Ø: ~2.5×2 al\nExpansion à ~20-30 km/s\n\nO[III] bleu-vert centre\nHα rouge extérieur\n\nL\'une des nébuleuses planétaires\nles plus photographiées',
+      draw:(ctx,W,H)=>{
+        ctx.clearRect(0,0,W,H);
+        const cx=W/2,cy=H/2,R=W*.36,r=W*.14;
+        // Anneau Hα rouge-orange externe
+        const ring=ctx.createRadialGradient(cx,cy,R-r,cx,cy,R+r);
+        ring.addColorStop(0,'rgba(0,0,0,0)');ring.addColorStop(.3,'rgba(255,60,20,0.7)');ring.addColorStop(.5,'rgba(255,100,40,0.9)');ring.addColorStop(.7,'rgba(200,40,10,0.7)');ring.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=ring;ctx.beginPath();ctx.arc(cx,cy,R+r,0,Math.PI*2);ctx.fill();
+        // Intérieur O[III] bleu-vert
+        const inner=ctx.createRadialGradient(cx,cy,0,cx,cy,R-r*.3);
+        inner.addColorStop(0,'rgba(100,255,200,0.2)');inner.addColorStop(.6,'rgba(60,200,255,0.4)');inner.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=inner;ctx.fillRect(0,0,W,H);
+        // Anneau O[III] bleu-vert
+        const oring=ctx.createRadialGradient(cx,cy,R-r*.8,cx,cy,R+r*.5);
+        oring.addColorStop(0,'rgba(0,0,0,0)');oring.addColorStop(.35,'rgba(80,220,255,0.45)');oring.addColorStop(.65,'rgba(60,180,220,0.35)');oring.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=oring;ctx.fillRect(0,0,W,H);
+        // Naine blanche centrale
+        const nw=ctx.createRadialGradient(cx,cy,0,cx,cy,W*.025);
+        nw.addColorStop(0,'rgba(255,255,255,1)');nw.addColorStop(.5,'rgba(200,220,255,0.7)');nw.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=nw;ctx.beginPath();ctx.arc(cx,cy,W*.025,0,Math.PI*2);ctx.fill();
+      }
     },
     {
-      name:'Nébuleuse de la Lyre (M57)',
-      key:'ring',
-      pos:[GC+35000,8000,-150000],
-      type:'planétaire', cols:[0x4499ff,0x55ffcc,0xffcc44],
-      radius:3000, N:20000,
-      info:'💍 NÉBULEUSE DE LA LYRE — M57\n\nNébuleuse planétaire\nDistance: ~2 000 al · Constellation: Lyre\n\nNaine blanche centrale:\n• Température: ~120 000 K\n• Magnitude: +14.8 (très faible)\n• Rayon: ~0.015 R☉\n\nGaz éjecté à ~20-30 km/s\nDimensions: ~2.5 × 2 al\nÂge: ~6 900 ans\n\nMagnifique anneau coloré:\n• Bleu-vert centre: O[III]\n• Rouge extérieur: Hα\n\nL\'une des nébuleuses planétaires\nles plus photographiées du ciel',
-      shape:'torus',
+      name:'Nébuleuse de la Tête de Cheval (IC 434)', key:'horsehead',
+      pos:[GC-55000,5000,-470000], scale:8000,
+      info:'🐴 TÊTE DE CHEVAL — IC 434 / Barnard 33\nDistance: ~1 375 al (Ceinture d\'Orion)\n\nNébuleuse SOMBRE projetée sur IC 434 (rouge)\n→ Silhouette iconique en tête de cheval\n\nH: ~4 al · Érosion par UV → durera ~5 Ma\n\nFormation d\'étoiles dans les colonnes\nMieux visible en infrarouge (JWST)',
+      draw:(ctx,W,H)=>{
+        ctx.clearRect(0,0,W,H);
+        // Fond rouge-rose (IC 434 Hα)
+        const bg=ctx.createRadialGradient(W/2,H*.6,0,W/2,H*.6,W*.6);
+        bg.addColorStop(0,'rgba(220,40,60,0.7)');bg.addColorStop(.5,'rgba(160,20,40,0.4)');bg.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+        // Barre de poussière horizontale (IC 434)
+        ctx.fillStyle='rgba(15,4,2,0.95)';ctx.fillRect(0,H*.72,W,H*.28);
+        // Tête de cheval sombre (silhouette)
+        ctx.fillStyle='rgba(10,3,1,0.98)';
+        ctx.beginPath();
+        ctx.moveTo(W*.38,H*.72);ctx.bezierCurveTo(W*.35,H*.62,W*.3,H*.55,W*.32,H*.46);
+        ctx.bezierCurveTo(W*.28,H*.40,W*.25,H*.36,W*.30,H*.32);
+        ctx.bezierCurveTo(W*.38,H*.26,W*.46,H*.30,W*.50,H*.38);
+        ctx.bezierCurveTo(W*.56,H*.35,W*.58,H*.38,W*.55,H*.44);
+        ctx.bezierCurveTo(W*.60,H*.50,W*.60,H*.58,W*.55,H*.65);
+        ctx.bezierCurveTo(W*.52,H*.70,W*.45,H*.72,W*.38,H*.72);
+        ctx.closePath();ctx.fill();
+        // Étoile en bas à gauche (Sigma Orionis)
+        const sg=ctx.createRadialGradient(W*.22,H*.82,0,W*.22,H*.82,W*.06);
+        sg.addColorStop(0,'rgba(200,210,255,0.9)');sg.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=sg;ctx.beginPath();ctx.arc(W*.22,H*.82,W*.06,0,Math.PI*2);ctx.fill();
+      }
     },
   ];
 
+  const NEBULA_SIZE=1024;
+
   NEBULAE.forEach(neb=>{
     const g=new THREE.Group(); g.position.set(...neb.pos);
-    g.userData={nebulaKey:neb.key};
-    nebulaGroup.add(g);
+    g.userData={nebulaKey:neb.key}; nebulaGroup.add(g);
 
-    const nGeo=new THREE.BufferGeometry();
-    const nPos=new Float32Array(neb.N*3), nCols=new Float32Array(neb.N*3);
+    // Billboard principal haute résolution
+    const tex=makeNebulaBillboard(NEBULA_SIZE,NEBULA_SIZE,neb.draw);
+    tex.anisotropy=16;
 
-    for(let i=0;i<neb.N;i++){
-      let x2,y2,z2,colIdx;
+    const mat=new THREE.SpriteMaterial({map:tex,transparent:true,opacity:.88,depthWrite:false,blending:THREE.AdditiveBlending});
+    const sprite=new THREE.Sprite(mat);
+    sprite.scale.set(neb.scale*2,neb.scale*2,1);
+    g.add(sprite);
 
-      if(neb.shape==='pillars'){
-        // 3 colonnes verticales
-        const col2=Math.floor(Math.random()*3);
-        const cx=[0,-neb.radius*.35,neb.radius*.35][col2];
-        const pilH=neb.radius*(0.5+Math.random()*.5);
-        const pilR=neb.radius*.08*(1-Math.random()*.3);
-        const ang=Math.random()*Math.PI*2;
-        x2=cx+Math.cos(ang)*pilR*Math.random();
-        y2=-neb.radius*.2+Math.random()*pilH;
-        z2=Math.sin(ang)*pilR*Math.random();
-        colIdx=col2%neb.cols.length;
-      } else if(neb.shape==='explosion'){
-        // Forme d'explosion filamenteuse
+    // 2ème billboard légèrement pivoté pour volume (effet 3D)
+    const mat2=new THREE.SpriteMaterial({map:tex,transparent:true,opacity:.35,depthWrite:false,blending:THREE.AdditiveBlending});
+    const sprite2=new THREE.Sprite(mat2);
+    sprite2.scale.set(neb.scale*2.2,neb.scale*2.2,1);
+    sprite2.rotation=0.3;
+    g.add(sprite2);
+
+    // Halo volumétrique de particules
+    {
+      const N=3000;
+      const geo=new THREE.BufferGeometry(),pos=new Float32Array(N*3),cols=new Float32Array(N*3);
+      for(let i=0;i<N;i++){
         const ph2=Math.acos(2*Math.random()-1),th2=Math.random()*Math.PI*2;
-        const r=neb.radius*(.3+Math.random()*.7);
-        const fil=.7+.3*Math.abs(Math.sin(th2*5+ph2*3));
-        x2=Math.sin(ph2)*Math.cos(th2)*r*fil;
-        y2=Math.sin(ph2)*Math.sin(th2)*r*.7;
-        z2=Math.cos(ph2)*r*fil;
-        colIdx=Math.floor(Math.random()*neb.cols.length);
-      } else if(neb.shape==='ring'){
-        // Forme annulaire
-        const outerR=neb.radius,innerR=neb.radius*.35;
-        const r=innerR+Math.random()*(outerR-innerR);
-        const a=Math.random()*Math.PI*2;
-        x2=Math.cos(a)*r; y2=(Math.random()-.5)*neb.radius*.25; z2=Math.sin(a)*r;
-        colIdx=Math.floor(Math.random()*neb.cols.length);
-      } else if(neb.shape==='torus'){
-        const R=neb.radius*.6,r=neb.radius*.25;
-        const a=Math.random()*Math.PI*2,b=Math.random()*Math.PI*2;
-        x2=(R+r*Math.cos(b))*Math.cos(a); y2=r*Math.sin(b); z2=(R+r*Math.cos(b))*Math.sin(a);
-        colIdx=Math.floor(a/(Math.PI*2)*neb.cols.length)%neb.cols.length;
-      } else {
-        // Cloud default
-        const ph2=Math.acos(2*Math.random()-1),th2=Math.random()*Math.PI*2;
-        const r=neb.radius*(Math.random()*.85+.15);
-        const turbX=(Math.random()-.5)*r*.4, turbZ=(Math.random()-.5)*r*.4;
-        x2=Math.sin(ph2)*Math.cos(th2)*r+turbX;
-        y2=Math.sin(ph2)*Math.sin(th2)*r*.6;
-        z2=Math.cos(ph2)*r+turbZ;
-        colIdx=Math.floor(Math.random()*neb.cols.length);
+        const r=neb.scale*(.1+Math.random()*.9);
+        pos[i*3]=Math.sin(ph2)*Math.cos(th2)*r;pos[i*3+1]=Math.sin(ph2)*Math.sin(th2)*r*.3;pos[i*3+2]=Math.cos(ph2)*r;
+        const br=.2+Math.random()*.5*(1-r/(neb.scale));
+        const tc=Math.floor(Math.random()*3);
+        // Couleurs mixtes rose/bleu/orange
+        if(tc===0){cols[i*3]=.9*br;cols[i*3+1]=.2*br;cols[i*3+2]=.3*br;}
+        else if(tc===1){cols[i*3]=.2*br;cols[i*3+1]=.5*br;cols[i*3+2]=.9*br;}
+        else{cols[i*3]=.9*br;cols[i*3+1]=.6*br;cols[i*3+2]=.1*br;}
       }
-
-      nPos[i*3]=x2; nPos[i*3+1]=y2; nPos[i*3+2]=z2;
-      const c2=neb.cols[colIdx];
-      const br=.25+Math.random()*.6;
-      nCols[i*3]=((c2>>16)/255)*br; nCols[i*3+1]=(((c2>>8)&0xff)/255)*br; nCols[i*3+2]=((c2&0xff)/255)*br;
-    }
-    nGeo.setAttribute('position',new THREE.BufferAttribute(nPos,3));
-    nGeo.setAttribute('color',   new THREE.BufferAttribute(nCols,3));
-
-    const ptSize=neb.radius*({pillars:.055,explosion:.08,ring:.062,torus:.12,cloud:.072,veil:.065,horse:.065,sombre:.05}[neb.shape]||.06);
-    g.add(new THREE.Points(nGeo,new THREE.PointsMaterial({size:ptSize,vertexColors:true,transparent:true,opacity:.58,sizeAttenuation:true,depthWrite:false,blending:THREE.AdditiveBlending})));
-
-    // Halo diffus
-    if(neb.type!=='sombre'){
-      const halo=new THREE.Mesh(new THREE.SphereGeometry(neb.radius*.9,16,16),new THREE.MeshBasicMaterial({color:neb.cols[0],transparent:true,opacity:.025,side:THREE.DoubleSide,depthWrite:false}));
-      g.add(halo);
+      geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+      geo.setAttribute('color',new THREE.BufferAttribute(cols,3));
+      g.add(new THREE.Points(geo,new THREE.PointsMaterial({size:neb.scale*.032,vertexColors:true,transparent:true,opacity:.32,sizeAttenuation:true,depthWrite:false,blending:THREE.AdditiveBlending})));
     }
 
-    // Étoile centrale pour restes de supernova + nébuleuses planétaires
-    if(neb.type==='remnant'||neb.type==='planétaire'){
-      const cstar=new THREE.Mesh(new THREE.SphereGeometry(neb.radius*.02,8,8),new THREE.MeshBasicMaterial({color:0xffffff}));
-      g.add(cstar); registerMesh(cstar,neb.name+' (étoile centrale)',neb.info);
-      g.add(new THREE.Mesh(new THREE.SphereGeometry(neb.radius*.06,8,8),new THREE.MeshBasicMaterial({color:0xaaddff,transparent:true,opacity:.15,side:THREE.BackSide})));
-    }
+    // Mesh invisible pour raycasting (clic sur la nébuleuse)
+    const hitMesh=new THREE.Mesh(new THREE.PlaneGeometry(neb.scale*1.8,neb.scale*1.8),new THREE.MeshBasicMaterial({visible:false,side:THREE.DoubleSide}));
+    g.add(hitMesh); registerMesh(hitMesh,neb.name,neb.info);
 
-    const lbl=mkLabel(neb.name,'rgba(200,220,255,.75)',13,600);
-    lbl.scale.set(neb.radius*2.2,neb.radius*.25,1); lbl.position.set(0,neb.radius*1.1,0); g.add(lbl);
-    registerMesh(new THREE.Mesh(new THREE.SphereGeometry(neb.radius*.15,6,6),new THREE.MeshBasicMaterial({visible:false})),neb.name,neb.info);
-    g.children[g.children.length-1].position.set(0,0,0); g.add(g.children[g.children.length-1]);
+    // Label
+    const lbl=mkLabel(neb.name,'rgba(200,220,255,.78)',12,600);
+    lbl.scale.set(neb.scale*2.5,neb.scale*.28,1); lbl.position.set(0,neb.scale*1.2,0); g.add(lbl);
   });
 }
 
@@ -1065,7 +1169,11 @@ function animate(){
   });
 
   // Visibilité par niveau de zoom
-  const inGal=radius>65000||['milkyway','sgra','betelgeuse','antares','rigel','deneb','muCep','trappist','tauceti','kepler452','51peg','eridani','gliese667','pillars','crab','orion','rosette','horsehead','veil','ring'].includes(curTarget);
+  const galTargets=['milkyway','sgra','betelgeuse','antares','rigel','deneb','muCep',
+    'trappist','tauceti','kepler452','51peg','eridani','gliese667',
+    'pillars','crab','orion','rosette','horsehead','veil','ring',
+    'quasar3c273','pulsarcrab','magnetar','cygnusx1'];
+  const inGal=radius>65000||galTargets.includes(curTarget);
   const inAnd=radius>5000000||curTarget==='andromeda'||curTarget==='localgroup';
   const inAC=(radius>15000&&radius<4000000)||curTarget==='alphacentauri'||curTarget==='barnard'||curTarget==='sirius';
 
