@@ -6,142 +6,158 @@
 <meta name="theme-color" content="#000010">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="COSMOS">
 <meta name="description" content="Simulateur cosmique interactif — Système Solaire, Voie Lactée, Univers observable">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>COSMOS — Simulateur Universel</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@200;400;700&family=Space+Mono:ital@0;1&display=swap');
-    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-      html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:'Space Mono',monospace;color:#a0c0ff;touch-action:none;}
-        canvas{display:block;position:fixed;top:0;left:0;}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:'Space Mono',monospace;color:#a0c0ff;touch-action:none;}
+  canvas{display:block;position:fixed;top:0;left:0;}
 
-          /* ── LOADING ── */
-            #loader{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;transition:opacity .8s;}
-              #loader.fade{opacity:0;pointer-events:none;}
-                #loader-title{font-family:'Orbitron',sans-serif;font-size:clamp(18px,5vw,32px);font-weight:200;letter-spacing:12px;color:#a0c0ff;margin-bottom:8px;}
-                  #loader-sub{font-size:10px;letter-spacing:4px;color:rgba(100,150,255,.5);margin-bottom:40px;}
-                    #loader-bar-wrap{width:240px;height:2px;background:rgba(74,127,255,.15);border-radius:1px;overflow:hidden;}
-                      #loader-bar{height:100%;width:0;background:linear-gradient(90deg,#2244aa,#4a7fff,#88bbff);border-radius:1px;transition:width .3s;}
-                        #loader-status{margin-top:12px;font-size:9px;letter-spacing:3px;color:rgba(100,150,255,.4);}
+  /* ── LOADING ── */
+  #loader{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;transition:opacity .8s;}
+  #loader.fade{opacity:0;pointer-events:none;}
+  #loader-title{font-family:'Orbitron',sans-serif;font-size:clamp(18px,5vw,32px);font-weight:200;letter-spacing:12px;color:#a0c0ff;margin-bottom:8px;}
+  #loader-sub{font-size:10px;letter-spacing:4px;color:rgba(100,150,255,.5);margin-bottom:40px;}
+  #loader-bar-wrap{width:240px;height:2px;background:rgba(74,127,255,.15);border-radius:1px;overflow:hidden;}
+  #loader-bar{height:100%;width:0;background:linear-gradient(90deg,#2244aa,#4a7fff,#88bbff);border-radius:1px;transition:width .3s;}
+  #loader-status{margin-top:12px;font-size:9px;letter-spacing:3px;color:rgba(100,150,255,.4);}
 
-                          /* ── HUD SHELL ── */
-                            #hud{position:fixed;inset:0;pointer-events:none;z-index:50;}
+  /* ── HUD SHELL ── */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:50;}
 
-                              /* ── TOP BAR ── */
-                                #top-bar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:center;padding:env(safe-area-inset-top,10px) 16px 8px;background:linear-gradient(180deg,rgba(0,0,15,.85) 0%,transparent 100%);pointer-events:none;}
-                                  #title{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:200;letter-spacing:8px;color:rgba(160,200,255,.45);text-transform:uppercase;}
-                                    #scale-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:3px;color:rgba(100,160,255,.7);white-space:nowrap;transition:all .5s;}
+  /* ── TOP BAR ── */
+  #top-bar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:center;padding:env(safe-area-inset-top,10px) 16px 8px;background:linear-gradient(180deg,rgba(0,0,15,.85) 0%,transparent 100%);pointer-events:none;}
+  #title{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:200;letter-spacing:8px;color:rgba(160,200,255,.45);text-transform:uppercase;}
+  #scale-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:3px;color:rgba(100,160,255,.7);white-space:nowrap;transition:all .5s;}
 
-                                      /* ── LEFT NAV ── */
-                                        #nav{position:absolute;top:50%;left:10px;transform:translateY(-50%);display:flex;flex-direction:column;gap:2px;pointer-events:all;max-height:88vh;overflow-y:auto;}
-                                          #nav::-webkit-scrollbar{width:2px;}
-                                            #nav::-webkit-scrollbar-thumb{background:rgba(74,127,255,.3);}
-                                              .nav-section{font-family:'Orbitron',sans-serif;font-size:6.5px;letter-spacing:2px;color:rgba(100,140,255,.38);padding:5px 8px 1px;text-transform:uppercase;}
-                                                .nav-btn{background:rgba(0,4,20,.75);border:1px solid rgba(74,127,255,.14);color:rgba(160,200,255,.52);font-family:'Orbitron',sans-serif;font-size:7.5px;letter-spacing:.8px;padding:4px 9px;cursor:pointer;transition:all .18s;text-align:left;white-space:nowrap;backdrop-filter:blur(8px);}
-                                                  .nav-btn:hover,.nav-btn.active{background:rgba(74,127,255,.2);color:#fff;border-color:rgba(74,127,255,.5);}
+  /* ── LEFT NAV ── */
+  #nav{position:absolute;top:50%;left:10px;transform:translateY(-50%);display:flex;flex-direction:column;gap:2px;pointer-events:all;max-height:88vh;overflow-y:auto;}
+  #nav::-webkit-scrollbar{width:2px;}
+  #nav::-webkit-scrollbar-thumb{background:rgba(74,127,255,.3);}
+  .nav-section{font-family:'Orbitron',sans-serif;font-size:6.5px;letter-spacing:2px;color:rgba(100,140,255,.38);padding:5px 8px 1px;text-transform:uppercase;}
+  .nav-btn{background:rgba(0,4,20,.75);border:1px solid rgba(74,127,255,.14);color:rgba(160,200,255,.52);font-family:'Orbitron',sans-serif;font-size:7.5px;letter-spacing:.8px;padding:4px 9px;cursor:pointer;transition:all .18s;text-align:left;white-space:nowrap;backdrop-filter:blur(8px);}
+  .nav-btn:hover,.nav-btn.active{background:rgba(74,127,255,.2);color:#fff;border-color:rgba(74,127,255,.5);}
 
-                                                    /* ── BOTTOM BAR ── */
-                                                      #bottom-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(0,2,12,.82);border-top:1px solid rgba(74,127,255,.15);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));flex-wrap:wrap;pointer-events:all;}
-                                                        .ctrl-btn{background:rgba(15,35,90,.55);border:1px solid rgba(74,127,255,.3);color:#a0c0ff;font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:1.5px;padding:6px 12px;cursor:pointer;transition:all .18s;white-space:nowrap;}
-                                                          .ctrl-btn:hover{background:rgba(74,127,255,.28);color:#fff;border-color:#4a7fff;}
-                                                            .ctrl-btn.active{background:rgba(74,127,255,.38);color:#fff;}
-                                                              #speed-val{font-family:'Orbitron',sans-serif;font-size:10px;color:rgba(160,200,255,.7);min-width:32px;text-align:center;}
-                                                                .sep{width:1px;height:18px;background:rgba(74,127,255,.18);}
+  /* ── BOTTOM BAR ── */
+  #bottom-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(0,2,12,.82);border-top:1px solid rgba(74,127,255,.15);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));flex-wrap:wrap;pointer-events:all;}
+  .ctrl-btn{background:rgba(15,35,90,.55);border:1px solid rgba(74,127,255,.3);color:#a0c0ff;font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:1.5px;padding:6px 12px;cursor:pointer;transition:all .18s;white-space:nowrap;}
+  .ctrl-btn:hover{background:rgba(74,127,255,.28);color:#fff;border-color:#4a7fff;}
+  .ctrl-btn.active{background:rgba(74,127,255,.38);color:#fff;}
+  #speed-val{font-family:'Orbitron',sans-serif;font-size:10px;color:rgba(160,200,255,.7);min-width:32px;text-align:center;}
+  .sep{width:1px;height:18px;background:rgba(74,127,255,.18);}
 
-                                                                  /* ── INFO PANEL ── */
-                                                                    #info{position:absolute;top:56px;right:10px;width:min(220px,42vw);background:rgba(0,3,18,.92);border:1px solid rgba(74,127,255,.22);backdrop-filter:blur(18px);padding:13px;opacity:0;transition:opacity .25s;pointer-events:none;}
-                                                                      #info.show{opacity:1;}
-                                                                        #info-name{font-family:'Orbitron',sans-serif;font-size:12px;color:#fff;margin-bottom:7px;letter-spacing:1.5px;}
-                                                                          #info-body{font-size:8.5px;line-height:1.85;color:rgba(160,200,255,.88);}
+  /* ── INFO PANEL ── */
+  #info{position:absolute;top:56px;right:10px;width:min(220px,42vw);background:rgba(0,3,18,.92);border:1px solid rgba(74,127,255,.22);backdrop-filter:blur(18px);padding:13px;opacity:0;transition:opacity .25s;pointer-events:none;}
+  #info.show{opacity:1;}
+  #info-name{font-family:'Orbitron',sans-serif;font-size:12px;color:#fff;margin-bottom:7px;letter-spacing:1.5px;}
+  #info-body{font-size:8.5px;line-height:1.85;color:rgba(160,200,255,.88);}
 
-                                                                            /* ── CROSSHAIR ── */
-                                                                              #crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;pointer-events:none;opacity:.2;}
-                                                                                #crosshair::before,#crosshair::after{content:'';position:absolute;background:rgba(160,200,255,.6);}
-                                                                                  #crosshair::before{left:50%;top:0;width:1px;height:100%;transform:translateX(-50%);}
-                                                                                    #crosshair::after{top:50%;left:0;height:1px;width:100%;transform:translateY(-50%);}
+  /* ── CROSSHAIR ── */
+  #crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;pointer-events:none;opacity:.2;}
+  #crosshair::before,#crosshair::after{content:'';position:absolute;background:rgba(160,200,255,.6);}
+  #crosshair::before{left:50%;top:0;width:1px;height:100%;transform:translateX(-50%);}
+  #crosshair::after{top:50%;left:0;height:1px;width:100%;transform:translateY(-50%);}
 
-                                                                                      /* ── HINT ── */
-                                                                                        #hint{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);font-size:7.5px;letter-spacing:1.8px;color:rgba(160,200,255,.16);white-space:nowrap;pointer-events:none;}
+  /* ── HINT ── */
+  #hint{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);font-size:7.5px;letter-spacing:1.8px;color:rgba(160,200,255,.16);white-space:nowrap;pointer-events:none;}
 
-                                                                                          /* ── OBJECT LABEL (3D→2D projected) ── */
-                                                                                            .obj-label{position:absolute;font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:1px;color:rgba(160,200,255,.7);pointer-events:none;transform:translate(-50%,-130%);white-space:nowrap;text-shadow:0 0 8px rgba(0,20,60,.9);}
-                                                                                            </style>
-                                                                                            </head>
-                                                                                            <body>
+  /* ── OBJECT LABEL (3D→2D projected) ── */
+  .obj-label{position:absolute;font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:1px;color:rgba(160,200,255,.7);pointer-events:none;transform:translate(-50%,-130%);white-space:nowrap;text-shadow:0 0 8px rgba(0,20,60,.9);}
+</style>
+</head>
+<body>
 
-                                                                                            <!-- LOADING SCREEN -->
-                                                                                            <div id="loader">
-                                                                                              <div id="loader-title">COSMOS</div>
-                                                                                                <div id="loader-sub">Simulateur Universel</div>
-                                                                                                  <div id="loader-bar-wrap"><div id="loader-bar"></div></div>
-                                                                                                    <div id="loader-status">Initialisation...</div>
-                                                                                                    </div>
+<!-- LOADING SCREEN -->
+<div id="loader">
+  <div id="loader-title">COSMOS</div>
+  <div id="loader-sub">Simulateur Universel</div>
+  <div id="loader-bar-wrap"><div id="loader-bar"></div></div>
+  <div id="loader-status">Initialisation...</div>
+</div>
 
-                                                                                                    <!-- THREE.JS -->
-                                                                                                    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- THREE.JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-                                                                                                    <!-- HUD -->
-                                                                                                    <div id="hud">
-                                                                                                      <div id="top-bar">
-                                                                                                          <div id="title">COSMOS</div>
-                                                                                                              <div id="scale-label">☀️ Système Solaire</div>
-                                                                                                                </div>
+<!-- HUD -->
+<div id="hud">
+  <div id="top-bar">
+    <div id="title">COSMOS</div>
+    <div id="scale-label">☀️ Système Solaire</div>
+  </div>
 
-                                                                                                                  <div id="nav">
-                                                                                                                      <div class="nav-section">Système Solaire</div>
-                                                                                                                          <div class="nav-btn active" data-target="free">⊙ Vue libre</div>
-                                                                                                                              <div class="nav-btn" data-target="sun">☀ Soleil</div>
-                                                                                                                                  <div class="nav-btn" data-target="mercury">☿ Mercure</div>
-                                                                                                                                      <div class="nav-btn" data-target="venus">♀ Vénus</div>
-                                                                                                                                          <div class="nav-btn" data-target="earth">♁ Terre</div>
-                                                                                                                                              <div class="nav-btn" data-target="mars">♂ Mars</div>
-                                                                                                                                                  <div class="nav-btn" data-target="jupiter">♃ Jupiter</div>
-                                                                                                                                                      <div class="nav-btn" data-target="saturn">♄ Saturne</div>
-                                                                                                                                                          <div class="nav-btn" data-target="uranus">⛢ Uranus</div>
-                                                                                                                                                              <div class="nav-btn" data-target="neptune">♆ Neptune</div>
-                                                                                                                                                                  <div class="nav-section">Orbiteurs</div>
-                                                                                                                                                                      <div class="nav-btn" data-target="iss">🛰 ISS</div>
-                                                                                                                                                                          <div class="nav-btn" data-target="hubble">🔭 Hubble</div>
-                                                                                                                                                                              <div class="nav-btn" data-target="jwst">🌌 JWST</div>
-                                                                                                                                                                                  <div class="nav-section">Étoiles proches</div>
-                                                                                                                                                                                      <div class="nav-btn" data-target="alphacentauri">⭐ α Centauri</div>
-                                                                                                                                                                                          <div class="nav-btn" data-target="barnard">🌟 Étoile de Barnard</div>
-                                                                                                                                                                                              <div class="nav-btn" data-target="sirius">💫 Sirius</div>
-                                                                                                                                                                                                  <div class="nav-section">Galaxie</div>
-                                                                                                                                                                                                      <div class="nav-btn" data-target="milkyway">🌀 Voie Lactée</div>
-                                                                                                                                                                                                          <div class="nav-btn" data-target="sgra">⚫ Sgr A*</div>
-                                                                                                                                                                                                              <div class="nav-section">Univers local</div>
-                                                                                                                                                                                                                  <div class="nav-btn" data-target="andromeda">🌠 Andromède</div>
-                                                                                                                                                                                                                      <div class="nav-btn" data-target="localgroup">🔭 Groupe Local</div>
-                                                                                                                                                                                                                        </div>
+  <div id="nav">
+    <div class="nav-section">Système Solaire</div>
+    <div class="nav-btn active" data-target="free">⊙ Vue libre</div>
+    <div class="nav-btn" data-target="sun">☀ Soleil</div>
+    <div class="nav-btn" data-target="mercury">☿ Mercure</div>
+    <div class="nav-btn" data-target="venus">♀ Vénus</div>
+    <div class="nav-btn" data-target="earth">♁ Terre</div>
+    <div class="nav-btn" data-target="mars">♂ Mars</div>
+    <div class="nav-btn" data-target="jupiter">♃ Jupiter</div>
+    <div class="nav-btn" data-target="saturn">♄ Saturne</div>
+    <div class="nav-btn" data-target="uranus">⛢ Uranus</div>
+    <div class="nav-btn" data-target="neptune">♆ Neptune</div>
+    <div class="nav-section">Orbiteurs</div>
+    <div class="nav-btn" data-target="iss">🛰 ISS</div>
+    <div class="nav-btn" data-target="hubble">🔭 Hubble</div>
+    <div class="nav-btn" data-target="jwst">🌌 JWST</div>
+    <div class="nav-section">Étoiles proches</div>
+    <div class="nav-btn" data-target="alphacentauri">⭐ α Centauri</div>
+    <div class="nav-btn" data-target="barnard">🌟 Étoile de Barnard</div>
+    <div class="nav-btn" data-target="sirius">💫 Sirius</div>
+    <div class="nav-section">Exoplanètes</div>
+    <div class="nav-btn" data-target="trappist">🪐 TRAPPIST-1</div>
+    <div class="nav-btn" data-target="tauceti">🌍 Tau Ceti</div>
+    <div class="nav-btn" data-target="kepler452">🔭 Kepler-452</div>
+    <div class="nav-section">Lunes remarquables</div>
+    <div class="nav-btn" data-target="moon-lune">🌕 La Lune</div>
+    <div class="nav-btn" data-target="moon-io">🌋 Io</div>
+    <div class="nav-btn" data-target="moon-europe">🌊 Europe</div>
+    <div class="nav-btn" data-target="moon-ganymede">🌑 Ganymède</div>
+    <div class="nav-btn" data-target="moon-callisto">🌑 Callisto</div>
+    <div class="nav-btn" data-target="moon-titan">🟠 Titan</div>
+    <div class="nav-btn" data-target="moon-encelade">💎 Encelade</div>
+    <div class="nav-btn" data-target="moon-triton">❄️ Triton</div>
+    <div class="nav-section">Étoiles géantes</div>
+    <div class="nav-btn" data-target="betelgeuse">🔴 Bételgeuse</div>
+    <div class="nav-btn" data-target="antares">🔴 Antarès</div>
+    <div class="nav-btn" data-target="rigel">💙 Rigel</div>
+    <div class="nav-section">Galaxie</div>
+    <div class="nav-btn" data-target="milkyway">🌀 Voie Lactée</div>
+    <div class="nav-btn" data-target="sgra">⚫ Sgr A*</div>
+    <div class="nav-section">Univers local</div>
+    <div class="nav-btn" data-target="andromeda">🌠 Andromède</div>
+    <div class="nav-btn" data-target="localgroup">🔭 Groupe Local</div>
+  </div>
 
-                                                                                                                                                                                                                          <div id="bottom-bar">
-                                                                                                                                                                                                                              <button class="ctrl-btn" id="btn-slower">◀◀</button>
-                                                                                                                                                                                                                                  <div id="speed-val">×1</div>
-                                                                                                                                                                                                                                      <button class="ctrl-btn" id="btn-faster">▶▶</button>
-                                                                                                                                                                                                                                          <div class="sep"></div>
-                                                                                                                                                                                                                                              <button class="ctrl-btn" id="btn-orbits">ORBITES</button>
-                                                                                                                                                                                                                                                  <button class="ctrl-btn" id="btn-labels">LABELS</button>
-                                                                                                                                                                                                                                                      <button class="ctrl-btn" id="btn-reset">RESET</button>
-                                                                                                                                                                                                                                                        </div>
+  <div id="bottom-bar">
+    <button class="ctrl-btn" id="btn-slower">◀◀</button>
+    <div id="speed-val">×1</div>
+    <button class="ctrl-btn" id="btn-faster">▶▶</button>
+    <div class="sep"></div>
+    <button class="ctrl-btn" id="btn-orbits">ORBITES</button>
+    <button class="ctrl-btn" id="btn-moons-orb">LUNES</button>
+    <button class="ctrl-btn" id="btn-labels">LABELS</button>
+    <button class="ctrl-btn" id="btn-reset">RESET</button>
+  </div>
 
-                                                                                                                                                                                                                                                          <div id="info"><div id="info-name"></div><div id="info-body"></div></div>
-                                                                                                                                                                                                                                                            <div id="crosshair"></div>
-                                                                                                                                                                                                                                                              <div id="hint">scroll/pinch = zoom · glisser = orbiter · ⇧+glisser = pan · tap = infos</div>
-                                                                                                                                                                                                                                                              </div>
+  <div id="info"><div id="info-name"></div><div id="info-body"></div></div>
+  <div id="crosshair"></div>
+  <div id="hint">scroll/pinch = zoom · glisser = orbiter · ⇧+glisser = pan · tap = infos</div>
+</div>
 
-                                                                                                                                                                                                                                                              <!-- MODULES -->
-                                                                                                                                                                                                                                                              <script src="js/noise.js"></script>
-                                                                                                                                                                                                                                                              <script src="js/shaders.js"></script>
-                                                                                                                                                                                                                                                              <script src="js/textures.js"></script>
-                                                                                                                                                                                                                                                              <script src="js/stardata.js"></script>
-                                                                                                                                                                                                                                                              <script src="js/planets.js"></script>
-                                                                                                                                                                                                                                                              <script src="js/galaxy.js"></script>
-                                                                                                                                                                                                                                                              <script src="js/audio.js"></script>
-                                                                                                                                                                                                                                                              <script src="js/main.js"></script>
-                                                                                                                                                                                                                                                              </body>
-                                                                                                                                                                                                                                                              </html>
-                                                                                                                                                                                                                                                              
+<!-- MODULES -->
+<script src="js/noise.js"></script>
+<script src="js/shaders.js"></script>
+<script src="js/textures.js"></script>
+<script src="js/stardata.js"></script>
+<script src="js/planets.js"></script>
+<script src="js/galaxy.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

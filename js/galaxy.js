@@ -1,23 +1,61 @@
 // ═══════════════════════════════════════════════════════════════
-// GALAXY.JS — Haute résolution PC : Voie Lactée, Sgr A*, Andromède
+// GALAXY.JS — Voie Lactée photoréaliste + Andromède + Sgr A*
+// Couleurs basées sur la population stellaire réelle
+// Spirales logarithmiques précises (Reid et al. 2014)
 // ═══════════════════════════════════════════════════════════════
 'use strict';
 
 window.GALAXY = (function(){
 
-  const GC  = 1800000;
-  const MWR = 3100000;
-  const MWT = 80000;
+  const GC  = 1800000;   // Centre galactique (scène)
+  const MWR = 3100000;   // Rayon MW
+  const MWT = 75000;     // Épaisseur disque
 
-  function sr(s){ return Math.abs((Math.sin(s*127.1)*43758.5453)%1); }
+  // Générateur pseudo-aléatoire déterministe
+  function sr(s){ const x=Math.sin(s*127.1+74.3)*43758.5453; return x-Math.floor(x); }
+  function sr2(a,b){ return sr(a*311.7+b*127.1); }
 
-  function makePoints(N, posFn, colFn, sizeFn, opacity){
+  // ── COULEURS STELLAIRES RÉALISTES ────────────────────────────
+  // Basées sur la photométrie réelle des bras spiraux
+  // Les bras sont BLEUS (jeunes étoiles O/B chaudes + nébuleuses)
+  // Inter-bras sont JAUNE-ORANGÉ (vieilles étoiles K/G)
+  // Bulbe est JAUNE-ROUGE (Population II ancienne)
+
+  function colorYoungHot(i){    // O/B stars — bleu très pur
+    const v=0.85+sr(i*7)*0.15;
+    return [v*0.55+sr(i*11)*0.1, v*0.70+sr(i*13)*0.1, v];
+  }
+  function colorMainSeqA(i){    // A stars — blanc-bleu
+    const v=0.90+sr(i*7)*0.10;
+    return [v*0.82, v*0.88, v];
+  }
+  function colorSunLike(i){     // F/G stars — blanc-jaune
+    return [0.98+sr(i*7)*0.02, 0.92+sr(i*11)*0.06, 0.70+sr(i*13)*0.15];
+  }
+  function colorOldOrange(i){   // K stars — orange doux
+    return [1.0, 0.70+sr(i*7)*0.15, 0.35+sr(i*11)*0.15];
+  }
+  function colorRedGiant(i){    // M giants — rouge-orangé
+    return [1.0, 0.48+sr(i*7)*0.18, 0.18+sr(i*11)*0.15];
+  }
+  function colorHII(i){         // Nébuleuses HII — rose/magenta
+    return [0.95+sr(i*7)*0.05, 0.22+sr(i*11)*0.18, 0.55+sr(i*13)*0.20];
+  }
+  function colorHIIBlue(i){     // Nébuleuses OB — bleu électrique
+    return [0.12+sr(i*7)*0.15, 0.52+sr(i*11)*0.25, 1.0];
+  }
+  function colorDust(i){        // Nuages de poussière — brun sombre
+    return [0.38+sr(i*7)*0.12, 0.25+sr(i*11)*0.10, 0.15+sr(i*13)*0.08];
+  }
+
+  // ── CONSTRUCTION DES POINTS ──────────────────────────────────
+  function buildGeo(N, posFn, colFn, sizeFn){
     const pos=new Float32Array(N*3), cols=new Float32Array(N*3), sizes=new Float32Array(N), alphas=new Float32Array(N);
     for(let i=0;i<N;i++){
-      const p=posFn(i); pos[i*3]=p[0];pos[i*3+1]=p[1];pos[i*3+2]=p[2];
-      const c=colFn(i); cols[i*3]=Math.min(1,c[0]);cols[i*3+1]=Math.min(1,c[1]);cols[i*3+2]=Math.min(1,c[2]);
+      const p=posFn(i); pos[i*3]=p[0]; pos[i*3+1]=p[1]; pos[i*3+2]=p[2];
+      const c=colFn(i); cols[i*3]=Math.min(1,c[0]); cols[i*3+1]=Math.min(1,c[1]); cols[i*3+2]=Math.min(1,c[2]);
       sizes[i]=sizeFn(i);
-      alphas[i]=opacity*(0.55+sr(i+1000)*0.45);
+      alphas[i]=0.5+sr(i+9999)*0.5;
     }
     const geo=new THREE.BufferGeometry();
     geo.setAttribute('position',   new THREE.BufferAttribute(pos,3));
@@ -27,316 +65,405 @@ window.GALAXY = (function(){
     return geo;
   }
 
-  // Spirale logarithmique réaliste
-  function spiralPoint(a0, t, scatter, seed){
-    const b=0.28, r0=14000;
-    const theta=a0+t*4.5;
-    const r=r0*Math.exp(b*t*1.1)*(0.75+sr(seed)*0.5);
-    return [GC+Math.cos(theta)*r+(sr(seed+1)-0.5)*r*scatter, 0, Math.sin(theta)*r+(sr(seed+2)-0.5)*r*scatter];
+  function addPoints(parent, N, posFn, colFn, sizeFn){
+    const geo = buildGeo(N, posFn, colFn, sizeFn);
+    parent.add(new THREE.Points(geo, SHADERS.makeGalaxyMaterial()));
   }
 
+  // ── SPIRALE LOGARITHMIQUE ────────────────────────────────────
+  // r = r_min * exp(b * theta) — b=0.28 pour la Voie Lactée
+  function logSpiral(armAngle, t, seed, scatter=0.10){
+    const b = 0.28;
+    const r_min = 12000;
+    const theta = armAngle + t * 4.8;
+    const r = r_min * Math.exp(b * t) * (0.82 + sr(seed) * 0.36);
+    const sc = r * scatter;
+    return [
+      GC + Math.cos(theta) * r + (sr(seed+1)-0.5)*sc,
+      (sr(seed+2)-0.5) * MWT * (1 - t*0.6),
+      Math.sin(theta) * r + (sr(seed+3)-0.5)*sc
+    ];
+  }
+
+  // ── VOIE LACTÉE ──────────────────────────────────────────────
   function buildMilkyWay(parent){
-    // 4 bras principaux — haute densité PC
-    const ARMS=[
-      {a:0.00,  N:40000, col:(t,r)=>[0.38+r*0.38, 0.50+t*0.22, 0.94+r*0.05]},  // Persée — bleu-blanc
-      {a:1.57,  N:40000, col:(t,r)=>[0.90+r*0.08, 0.62+t*0.22, 0.28+t*0.12]},  // Sagittaire — orangé
-      {a:3.14,  N:36000, col:(t,r)=>[0.52+r*0.32, 0.46+r*0.30, 0.92+r*0.06]},  // Norma-Cygne — violet
-      {a:4.71,  N:38000, col:(t,r)=>[0.94+r*0.05, 0.60+t*0.22, 0.22+r*0.10]},  // Scutum-Centaure — jaune
+
+    // ── BRAS PRINCIPAUX ─────────────────────────────────────────
+    // 4 bras: Persée (0°), Sagittaire (90°), Norma-Cygne (180°), Scutum (270°)
+    // Chaque bras = 3 couches superposées:
+    //   1. Étoiles O/B jeunes et chaudes (bleu vif) — sur le bras
+    //   2. Étoiles F/G (blanc-jaune) — légèrement dispersées
+    //   3. Régions HII rose-magenta — knots le long du bras
+
+    const ARM_CONFIGS = [
+      { angle: 0.00,  name: 'Perseus',   N_hot:22000, N_warm:18000, N_hii:6000 },
+      { angle: 1.571, name: 'Sagittarius',N_hot:22000, N_warm:18000, N_hii:6000 },
+      { angle: 3.142, name: 'Norma',      N_hot:20000, N_warm:16000, N_hii:5000 },
+      { angle: 4.712, name: 'Scutum',     N_hot:21000, N_warm:17000, N_hii:5500 },
     ];
 
-    ARMS.forEach((arm,ai)=>{
-      const geo=makePoints(arm.N,
+    ARM_CONFIGS.forEach((arm, ai)=>{
+      const seed_off = ai * 10000;
+
+      // Couche 1 — Étoiles O/B chaudes (BLEU VIF) — noyau du bras
+      addPoints(parent, arm.N_hot,
         (i)=>{
-          const t=Math.pow(sr(i*3+ai*1000),0.58);
-          const yH=MWT*(1-t*0.55)*(sr(i*7+1)-0.5);
-          const p=spiralPoint(arm.a,t,0.12,i*5+ai*777);
-          return[p[0],p[1]+yH,p[2]];
+          const t = Math.pow(sr(i*3+seed_off), 0.5);
+          return logSpiral(arm.angle, t, i+seed_off, 0.07);
         },
-        (i)=>arm.col(Math.pow(sr(i*3+ai*1000),0.58),sr(i*11+2)),
-        ()=>1800+sr(i=>i)*700,
-        0.62
+        (i)=>{
+          const t = Math.pow(sr(i*3+seed_off), 0.5);
+          // Plus loin du centre = plus rouge (étoiles vieillissent)
+          return t < 0.4 ? colorYoungHot(i+seed_off) : colorMainSeqA(i+seed_off);
+        },
+        (i)=> 1600 + sr(i+seed_off)*900
       );
-      parent.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
+
+      // Couche 2 — Étoiles F/G (blanc-jaune) — enveloppe du bras
+      addPoints(parent, arm.N_warm,
+        (i)=>{
+          const t = Math.pow(sr(i*7+seed_off+1), 0.55);
+          return logSpiral(arm.angle, t, i*3+seed_off+5000, 0.18);
+        },
+        (i)=> sr(i*5+seed_off) < 0.5 ? colorSunLike(i+seed_off) : colorMainSeqA(i+seed_off),
+        (i)=> 900 + sr(i+seed_off)*600
+      );
+
+      // Couche 3 — Régions HII (ROSE/MAGENTA et BLEU) — knots brillants
+      addPoints(parent, arm.N_hii,
+        (i)=>{
+          // Les régions HII forment des groupes le long du bras
+          const t = sr(i*11+seed_off)*0.85 + 0.05;
+          const p = logSpiral(arm.angle, t, i*7+seed_off+2000, 0.04);
+          // Légèrement au-dessus du plan (nébuleuses récentes)
+          p[1] += (sr(i*13+seed_off)-0.5) * MWT * 0.3;
+          return p;
+        },
+        (i)=> sr(i*17+seed_off) < 0.6 ? colorHII(i+seed_off) : colorHIIBlue(i+seed_off),
+        (i)=> 3500 + sr(i+seed_off)*2500   // grandes taches lumineuses
+      );
     });
 
-    // Bras d'Orion — notre bras local (plus fin)
+    // ── BRAS D'ORION — notre spur local ─────────────────────────
+    // Entre Persée et Sagittaire, ~26 000 al du centre
+    addPoints(parent, 14000,
+      (i)=>{
+        const t = Math.pow(sr(i*3+50000), 0.52);
+        const theta = -0.30 + t * 1.6 + (sr(i*7+50000)-0.5)*0.25;
+        const b=0.28, r0=23000;
+        const r = r0 * Math.exp(b*t*0.75) * (0.85+sr(i*11+50000)*0.30);
+        return [
+          GC + Math.cos(theta)*r + (sr(i*13+50000)-0.5)*r*0.08,
+          (sr(i*17+50000)-0.5)*MWT*0.7*(1-t*0.5),
+          Math.sin(theta)*r + (sr(i*19+50000)-0.5)*r*0.08
+        ];
+      },
+      (i)=> sr(i*5+50000)<0.45 ? colorYoungHot(i+50000) : colorMainSeqA(i+50000),
+      (i)=> 1400 + sr(i+50000)*700
+    );
+
+    // ── NUAGES DE POUSSIÈRE ──────────────────────────────────────
+    // Extinctions sombres entre les bras — donnent profondeur
+    addPoints(parent, 20000,
+      (i)=>{
+        const arm = Math.floor(sr(i*3+60000)*4)*Math.PI*0.5 + 0.7; // entre les bras
+        const t = sr(i*5+60000)*0.9 + 0.05;
+        const p = logSpiral(arm, t, i*7+60000, 0.22);
+        return p;
+      },
+      (i)=> colorDust(i+60000),
+      (i)=> 2200 + sr(i+60000)*1200
+    );
+
+    // ── ÉTOILES INTER-BRAS (fond diffus chaud) ──────────────────
+    // Population vieille — orangé/rouge, dispersée uniformément
+    addPoints(parent, 60000,
+      (i)=>{
+        const r = (4000 + sr(i*3+70000)*MWR) * Math.sqrt(sr(i*5+70000));
+        const a = sr(i*7+70000) * Math.PI * 2;
+        const yH = MWT*2.8*(sr(i*11+70000)-0.5)*Math.exp(-r/MWR*1.4);
+        return [GC+Math.cos(a)*r, yH, Math.sin(a)*r];
+      },
+      (i)=>{
+        // Mix réaliste: 70% K orange, 20% G jaune, 10% M rouge
+        const r=sr(i*13+70000);
+        if(r<0.70) return colorOldOrange(i+70000);
+        if(r<0.90) return colorSunLike(i+70000);
+        return colorRedGiant(i+70000);
+      },
+      (i)=> 650 + sr(i+70000)*350
+    );
+
+    // ── BULBE CENTRAL ────────────────────────────────────────────
+    // Barre galactique (~27° par rapport à la ligne de visée)
+    addPoints(parent, 35000,
+      (i)=>{
+        const r = sr(i*3+80000)*380000;
+        const th = sr(i*5+80000)*Math.PI*2;
+        const ph = Math.acos(2*sr(i*7+80000)-1);
+        // Barre: étirée à ~27° (angle observationnel réel)
+        const bar_stretch = 1.0 + Math.abs(Math.cos(th*2+0.47))*1.6;
+        return [
+          GC + Math.sin(ph)*Math.cos(th)*r*bar_stretch*0.65,
+          Math.sin(ph)*Math.sin(th)*r*0.36,
+          Math.cos(ph)*r
+        ];
+      },
+      (i)=>{
+        // Bulbe = Population II vieille, chaud orangé-rouge
+        const heat = 0.5 + sr(i*11+80000)*0.5;
+        const t = sr(i*13+80000);
+        if(t<0.4) return [heat*0.98, heat*0.62, heat*0.22];  // orangé
+        if(t<0.7) return [heat*0.95, heat*0.55, heat*0.18];  // rouge-orangé
+        return [heat*0.90, heat*0.42, heat*0.14];              // rouge profond
+      },
+      (i)=> 2600 + sr(i+80000)*1400
+    );
+
+    // ── AMAS NUCLÉAIRE (cœur dense, juste autour Sgr A*) ────────
+    addPoints(parent, 10000,
+      (i)=>{
+        const r = Math.pow(sr(i*3+90000),2)*32000;
+        const th = sr(i*5+90000)*Math.PI*2;
+        const ph = Math.acos(2*sr(i*7+90000)-1);
+        return [GC+Math.sin(ph)*Math.cos(th)*r, Math.sin(ph)*Math.sin(th)*r*0.42, Math.cos(ph)*r];
+      },
+      (i)=>{const h=0.75+sr(i*11+90000)*0.25; return [h, h*0.70, h*0.35];},
+      (i)=> 3500 + sr(i+90000)*2000
+    );
+
+    // ── HALO GALACTIQUE ──────────────────────────────────────────
+    // Étoiles métal-pauvres, légèrement bleutées
+    addPoints(parent, 12000,
+      (i)=>{
+        const r = MWR*(0.38+sr(i*3+95000)*0.95);
+        const th = sr(i*5+95000)*Math.PI*2;
+        const ph = Math.acos(2*sr(i*7+95000)-1);
+        return [GC+Math.sin(ph)*Math.cos(th)*r, Math.sin(ph)*Math.sin(th)*r*0.55, Math.cos(ph)*r];
+      },
+      (i)=>{const b=0.10+sr(i*11+95000)*0.20; return [b*0.82, b*0.75, b*0.60];},
+      (i)=> 2000 + sr(i+95000)*1000
+    );
+
+    // ── AMAS GLOBULAIRES (50) ────────────────────────────────────
+    for(let gc=0;gc<50;gc++){
+      const r=110000+sr(gc*3)*1800000;
+      const th=sr(gc*5)*Math.PI*2, ph=Math.acos(2*sr(gc*7)-1);
+      const cx=GC+Math.sin(ph)*Math.cos(th)*r;
+      const cy=Math.sin(ph)*Math.sin(th)*r*0.62;
+      const cz=Math.cos(ph)*r;
+      addPoints(parent, 280,
+        (i)=>{const dr=sr(i*3+gc*1000)*20000,ta=sr(i*5+gc*1000)*Math.PI*2,pa=Math.acos(2*sr(i*7+gc*1000)-1);return[cx+Math.sin(pa)*Math.cos(ta)*dr,cy+Math.sin(pa)*Math.sin(ta)*dr,cz+Math.cos(pa)*dr];},
+        (i)=>{const h=0.82+sr(i*9+gc*1000)*0.18; return[h, h*0.82, h*0.52];},
+        ()=> 4200 + sr(gc*17)*1800
+      );
+    }
+
+    // ── MARQUEUR SYSTÈME SOLAIRE ─────────────────────────────────
+    parent.add(new THREE.Mesh(new THREE.SphereGeometry(11000,8,8),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.9})));
     {
-      const geo=makePoints(15000,
-        (i)=>{
-          const t=Math.pow(sr(i*3+5000),0.55);
-          const theta=-0.35+t*1.8+(sr(i*7)-0.5)*0.3;
-          const b=0.28,r0=24000;
-          const r=r0*Math.exp(b*t*0.8)*(0.8+sr(i*11)*0.35);
-          return[GC+Math.cos(theta)*r+(sr(i*13)-0.5)*r*0.10,MWT*0.8*(1-t*0.5)*(sr(i*19)-0.5),Math.sin(theta)*r+(sr(i*17)-0.5)*r*0.10];
-        },
-        (i)=>sr(i*5)<0.5?[0.55+sr(i*9)*0.35,0.68+sr(i*13)*0.22,0.96+sr(i*17)*0.04]:[0.88,0.90,0.98],
-        ()=>1500+sr(Math.random()*9999)*600,
-        0.58
-      );
-      parent.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
+      const pts=[]; for(let i=0;i<=120;i++){const a=(i/120)*Math.PI*2; pts.push(new THREE.Vector3(GC+Math.cos(a)*26000,0,Math.sin(a)*26000));}
+      parent.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x66ccff,transparent:true,opacity:0.65})));
     }
-
-    // Régions HII — nébuleuses d'émission rose/rouge
-    {
-      const geo=makePoints(12000,
-        (i)=>{
-          const arm=Math.floor(sr(i*3)*4)*Math.PI*0.5;
-          const t=sr(i*5);
-          const p=spiralPoint(arm,t*0.88+0.06,0.08,i*7+8888);
-          return[p[0],p[1]+MWT*0.45*(sr(i*11)-0.5),p[2]];
-        },
-        (i)=>sr(i*9)<0.55?[0.95+sr(i*13)*0.05,0.20+sr(i*17)*0.28,0.38+sr(i*19)*0.28]:[0.18,0.52+sr(i*11)*0.25,1.0],
-        ()=>3200+sr(Math.random()*9999)*1400,
-        0.42
-      );
-      parent.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-    }
-
-    // Étoiles inter-bras — Population II vieilles
-    {
-      const geo=makePoints(50000,
-        (i)=>{
-          const r=(3000+sr(i*3)*MWR)*Math.sqrt(sr(i*5));
-          const a=sr(i*7)*Math.PI*2;
-          return[GC+Math.cos(a)*r,MWT*2.5*(sr(i*11)-0.5)*Math.exp(-r/MWR*1.5),Math.sin(a)*r];
-        },
-        (i)=>{const b=0.12+sr(i*13)*0.26;return[b*0.88,b*0.78,b*0.55];},
-        ()=>820+sr(Math.random()*9999)*380,
-        0.30
-      );
-      parent.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-    }
-
-    // Bulbe central — barre galactique
-    {
-      const geo=makePoints(30000,
-        (i)=>{
-          const r=sr(i*3)*350000, th=sr(i*5)*Math.PI*2, ph=Math.acos(2*sr(i*7)-1);
-          const bar=1.0+(Math.abs(Math.cos(th*2))*1.5);
-          return[GC+Math.sin(ph)*Math.cos(th)*r*bar*0.68,Math.sin(ph)*Math.sin(th)*r*0.38,Math.cos(ph)*r];
-        },
-        (i)=>{const h=0.5+sr(i*11)*0.5;return[h,h*0.65,h*0.24];},
-        ()=>2800+sr(Math.random()*9999)*1200,
-        0.92
-      );
-      parent.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-    }
-
-    // Amas du noyau stellaire (très dense, autour de Sgr A*)
-    {
-      const geo=makePoints(8000,
-        (i)=>{
-          const r=sr(i*3)*28000, th=sr(i*5)*Math.PI*2, ph=Math.acos(2*sr(i*7)-1);
-          return[GC+Math.sin(ph)*Math.cos(th)*r,Math.sin(ph)*Math.sin(th)*r*0.45,Math.cos(ph)*r];
-        },
-        (i)=>{const h=0.72+sr(i*9)*0.28;return[h,h*0.74,h*0.38];},
-        ()=>3800+sr(Math.random()*9999)*1600,
-        0.96
-      );
-      parent.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-    }
-
-    // Halo galactique
-    {
-      const geo=makePoints(10000,
-        (i)=>{
-          const r=MWR*(0.4+sr(i*3)*0.9), th=sr(i*5)*Math.PI*2, ph=Math.acos(2*sr(i*7)-1);
-          return[GC+Math.sin(ph)*Math.cos(th)*r,Math.sin(ph)*Math.sin(th)*r*0.58,Math.cos(ph)*r];
-        },
-        (i)=>{const b=0.12+sr(i*11)*0.22;return[b*0.85,b*0.72,b*0.45];},
-        ()=>2200+sr(Math.random()*9999)*900,
-        0.20
-      );
-      parent.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-    }
-
-    // 45 amas globulaires
-    for(let gc=0;gc<45;gc++){
-      const r=120000+sr(gc*3)*1600000, th=sr(gc*5)*Math.PI*2, ph=Math.acos(2*sr(gc*7)-1);
-      const cx=GC+Math.sin(ph)*Math.cos(th)*r, cy=Math.sin(ph)*Math.sin(th)*r*0.65, cz=Math.cos(ph)*r;
-      const geo=makePoints(250,
-        (i)=>{const dr=sr(i*3)*18000,ta=sr(i*5)*Math.PI*2,pa=Math.acos(2*sr(i*7)-1);return[cx+Math.sin(pa)*Math.cos(ta)*dr,cy+Math.sin(pa)*Math.sin(ta)*dr,cz+Math.cos(pa)*dr];},
-        ()=>[0.98,0.90,0.58], ()=>4500, 0.75
-      );
-      parent.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-    }
-
-    // Marqueur du Système Solaire
-    parent.add(new THREE.Mesh(new THREE.SphereGeometry(10000,8,8),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.92})));
-    const pts=[];for(let i=0;i<=120;i++){const a=(i/120)*Math.PI*2;pts.push(new THREE.Vector3(GC+Math.cos(a)*26000,0,Math.sin(a)*26000));}
-    parent.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x88ddff,transparent:true,opacity:0.72})));
   }
 
-  // ── SGR A* — TROU NOIR HAUTE QUALITÉ ─────────────────────────
+  // ── SGR A* ───────────────────────────────────────────────────
   function buildSgrA(parent){
-    const BHR=38000;
-    const g=new THREE.Group(); g.position.set(GC,0,0); parent.add(g);
+    const BHR = 38000;
+    const g = new THREE.Group(); g.position.set(GC,0,0); parent.add(g);
 
-    // Event horizon
+    // Horizon des événements — sphère noire pure
     g.add(new THREE.Mesh(new THREE.SphereGeometry(BHR,64,64),new THREE.MeshBasicMaterial({color:0x000000})));
 
-    // Photon sphere
-    const phRing=new THREE.Mesh(new THREE.TorusGeometry(BHR*1.5,BHR*0.14,48,160),new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.92}));
-    phRing.rotation.x=Math.PI/2; g.add(phRing);
+    // Sphère photonique (1.5 Rs)
+    const phRing = new THREE.Mesh(
+      new THREE.TorusGeometry(BHR*1.5, BHR*0.12, 64, 200),
+      new THREE.MeshBasicMaterial({color:0xff9900, transparent:true, opacity:0.95})
+    );
+    phRing.rotation.x = Math.PI/2; g.add(phRing);
 
-    // ISCO (innermost stable orbit)
-    g.add(new THREE.Mesh(new THREE.TorusGeometry(BHR*3,BHR*0.06,16,80),new THREE.MeshBasicMaterial({color:0xff5500,transparent:true,opacity:0.52})));
+    // ISCO (3 Rs)
+    g.add(new THREE.Mesh(new THREE.TorusGeometry(BHR*3, BHR*0.055, 24, 120),new THREE.MeshBasicMaterial({color:0xff5500,transparent:true,opacity:0.55})));
 
-    // Disque d'accrétion — shader physique
-    const disk=SHADERS.makeAccretionDisk(BHR*1.22,BHR*5.8);
-    disk.rotation.x=Math.PI/2; g.add(disk);
+    // Disque d'accrétion — shader physique (Keplerian + Doppler)
+    const disk = SHADERS.makeAccretionDisk(BHR*1.22, BHR*5.8);
+    disk.rotation.x = Math.PI/2; g.add(disk);
 
-    // Anneau chaud interne (plus brillant, plus fin)
-    const innerDisk=SHADERS.makeAccretionDisk(BHR*1.22,BHR*2.2);
-    innerDisk.rotation.x=Math.PI/2;
-    if(innerDisk.material?.uniforms) innerDisk.material.uniforms.uInnerR={value:BHR*1.22};
-    g.add(innerDisk);
+    // Particules du disque chaud (gradient thermique)
+    addPoints(g, 18000,
+      (i)=>{const r=BHR*(1.25+sr(i*3)*4.5), a=sr(i*5)*Math.PI*2, y=(sr(i*7)-0.5)*BHR*0.22; return[Math.cos(a)*r,y,Math.sin(a)*r];},
+      (i)=>{
+        const r_norm = sr(i*3)*4.5/(4.5);
+        const heat = Math.pow(1-r_norm*0.8, 2.5);
+        // Blanc → orange → rouge en s'éloignant
+        return [1.0, heat*0.55+(1-heat)*0.25, heat*0.10];
+      },
+      (i)=> BHR*0.048
+    );
 
-    // Halo de gaz chaud
-    {
-      const geo=makePoints(15000,
-        (i)=>{const r=BHR*(1.25+sr(i*3)*4.5),a=sr(i*5)*Math.PI*2,y=(sr(i*7)-0.5)*BHR*0.28;return[Math.cos(a)*r,y,Math.sin(a)*r];},
-        (i)=>{const heat=1-Math.min(1,(sr(i*3)*BHR*3.5)/(BHR*4.5));return[1,heat*0.52,heat*0.08];},
-        ()=>BHR*0.055, 0.9
-      );
-      g.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-    }
-
-    // Anneau extérieur refroidi
-    {
-      const geo=makePoints(8000,
-        (i)=>{const r=BHR*(5+sr(i*3)*4),a=sr(i*5)*Math.PI*2,y=(sr(i*7)-0.5)*BHR*0.4;return[Math.cos(a)*r,y,Math.sin(a)*r];},
-        (i)=>{const h=0.32+sr(i*9)*0.28;return[h,h*0.26,0];},
-        ()=>BHR*0.072, 0.55
-      );
-      g.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-    }
+    // Anneau de refroidissement externe
+    addPoints(g, 8000,
+      (i)=>{const r=BHR*(5.5+sr(i*3)*4.5), a=sr(i*5)*Math.PI*2, y=(sr(i*7)-0.5)*BHR*0.45; return[Math.cos(a)*r,y,Math.sin(a)*r];},
+      (i)=>{const h=0.30+sr(i*9)*0.25; return[h, h*0.22, 0];},
+      (i)=> BHR*0.070
+    );
 
     // Jets relativistes bipolaires
     [-1,1].forEach(dir=>{
-      const pts=[new THREE.Vector3(0,0,0),new THREE.Vector3(0,dir*BHR*18,0)];
-      g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x44aaff,transparent:true,opacity:0.78})));
-      const geo=makePoints(1500,
-        (i)=>{const t=sr(i*3),y2=dir*t*BHR*17,sp=t*BHR*3.2,a=sr(i*5)*Math.PI*2;return[Math.cos(a)*sp*sr(i*7),y2,Math.sin(a)*sp*sr(i*9)];},
-        (i)=>{const t=sr(i*3);return[0.22+t*0.38,0.58+t*0.32,1.0];},
-        ()=>BHR*0.092, 0.65
+      const pts=[new THREE.Vector3(0,0,0), new THREE.Vector3(0,dir*BHR*20,0)];
+      g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x44aaff,transparent:true,opacity:0.82})));
+      addPoints(g, 2000,
+        (i)=>{const t=sr(i*3), y=dir*t*BHR*19, sp=t*BHR*3.5, a=sr(i*5)*Math.PI*2; return[Math.cos(a)*sp*sr(i*7),y,Math.sin(a)*sp*sr(i*9)];},
+        (i)=>{const t=sr(i*3); return[0.20+t*0.40, 0.55+t*0.35, 1.0];},
+        ()=> BHR*0.088
       );
-      g.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
     });
 
-    // Labels
-    function glbl(txt,y,col,sx,sy){
-      const c=document.createElement('canvas');c.width=512;c.height=56;
-      const x=c.getContext('2d');x.font='16px monospace';x.fillStyle=col;x.textAlign='center';x.fillText(txt,256,38);
+    function glbl(txt, y, col, sw, sh){
+      const c=document.createElement('canvas'); c.width=600; c.height=58;
+      const x=c.getContext('2d'); x.font='15px monospace'; x.fillStyle=col; x.textAlign='center'; x.fillText(txt,300,40);
       const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true}));
-      s.scale.set(sx,sy,1);s.position.set(0,y,0);g.add(s);
+      s.scale.set(sw,sh,1); s.position.set(0,y,0); g.add(s);
     }
-    glbl('Sgr A*  ·  4.15 millions M☉  ·  Rs ≈ 12 millions km', BHR*7,  'rgba(255,178,76,0.88)', BHR*10, BHR*1.1);
-    glbl('Horizon des événements', BHR*2.6, 'rgba(255,118,38,0.78)', BHR*6.5, BHR*0.88);
-    glbl('Sphère photonique  (1.5 × Rs)', -BHR*3.2,'rgba(255,168,42,0.62)', BHR*7, BHR*0.80);
-    glbl('ISCO  (3 × Rs — orbite stable min.)', -BHR*5.5,'rgba(255,88,22,0.50)', BHR*8, BHR*0.75);
+    glbl('Sgr A*  ·  4.15 × 10⁶ M☉  ·  Rs ≈ 12 Mkm',  BHR*7.5, 'rgba(255,180,80,0.90)',  BHR*11, BHR*1.1);
+    glbl('Horizon des événements',                        BHR*2.8, 'rgba(255,120,40,0.80)',  BHR*7,  BHR*0.88);
+    glbl('Sphère photonique  (r = 1.5 Rs)',              -BHR*3.5, 'rgba(255,165,45,0.65)',  BHR*8,  BHR*0.80);
+    glbl('ISCO  (r = 3 Rs — dernière orbite stable)',    -BHR*5.8, 'rgba(255,90,25,0.52)',   BHR*9,  BHR*0.75);
 
-    return{group:g, phRing, disk, BHR};
+    return { group:g, phRing, disk, BHR };
   }
 
-  // ── ANDROMÈDE HAUTE RÉSOLUTION ────────────────────────────────
+  // ── ANDROMÈDE (M31) ──────────────────────────────────────────
+  // Vue à ~77° du plan (quasi de profil) — structure réaliste
   function buildAndromeda(parent, AND_DIST){
-    const AND_R=MWR*1.15, AND_T=MWT*1.4;
-    const g=new THREE.Group();
+    const AND_R = MWR * 1.18;
+    const AND_T = MWT * 1.35;
+    const g = new THREE.Group();
     g.position.set(AND_DIST*0.58, AND_DIST*0.28, AND_DIST*0.76);
     parent.add(g);
-    const TILT=1.35;
 
-    function andArm(a0,N,cFn){
-      const geo=makePoints(N,
+    // Inclinaison observée: ~77° par rapport à la face-on
+    const TILT = 1.344; // radians
+
+    function andSpiral(a0, t, seed, scatter=0.12){
+      const b=0.26, r0=9000;
+      const theta = a0 + t*4.2;
+      const r = r0*Math.exp(b*t)*(0.80+sr(seed)*0.40);
+      const sc = r*scatter;
+      const x = Math.cos(theta)*r + (sr(seed+1)-0.5)*sc;
+      const z = Math.sin(theta)*r + (sr(seed+2)-0.5)*sc;
+      const y = AND_T*(1-t*0.55)*(sr(seed+3)-0.5);
+      // Appliquer inclinaison
+      return [x, y*Math.cos(TILT)-z*Math.sin(TILT), y*Math.sin(TILT)+z*Math.cos(TILT)];
+    }
+
+    // 4 bras principaux d'Andromède
+    [0, 1.571, 3.142, 4.712].forEach((a0, ai)=>{
+      const so = ai*15000;
+
+      // Étoiles bleues chaudes — noyau des bras
+      addPoints(g, 28000,
+        (i)=>{ const t=Math.pow(sr(i*3+so),0.52); return andSpiral(a0,t,i+so,0.08); },
         (i)=>{
-          const t=Math.pow(sr(i*3+a0*100),0.55);
-          const b=0.28,r0=10000;
-          const th=a0+t*4.0+(sr(i*7)-0.5)*0.55;
-          const r=(r0+t*AND_R*0.95)*(0.8+sr(i*11)*0.42);
-          const x2=Math.cos(th)*r+(sr(i*13)-0.5)*r*0.18;
-          const z2=Math.sin(th)*r+(sr(i*13)-0.5)*r*0.18;
-          const y2=AND_T*(1-t*0.5)*(sr(i*17)-0.5);
-          return[x2, y2*Math.cos(TILT)-z2*Math.sin(TILT), y2*Math.sin(TILT)+z2*Math.cos(TILT)];
+          const t=Math.pow(sr(i*3+so),0.52);
+          return t<0.45 ? colorYoungHot(i+so) : colorMainSeqA(i+so);
         },
-        cFn,
-        ()=>2300+sr(Math.random()*9999)*950,
-        0.66
+        (i)=> 1700+sr(i+so)*950
       );
-      g.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-    }
 
-    andArm(0,    30000, (i)=>sr(i*5)<0.5?[0.40+sr(i*9)*0.38,0.50+sr(i*13)*0.22,0.94+sr(i*17)*0.05]:[0.88,0.90,0.98]);
-    andArm(1.57, 30000, (i)=>sr(i*5)<0.5?[0.90+sr(i*9)*0.08,0.62+sr(i*13)*0.20,0.28+sr(i*17)*0.12]:[0.98,0.88,0.62]);
-    andArm(3.14, 30000, (i)=>sr(i*5)<0.5?[0.52+sr(i*9)*0.30,0.46+sr(i*13)*0.28,0.92+sr(i*17)*0.06]:[0.80,0.85,0.98]);
-    andArm(4.71, 28000, (i)=>sr(i*5)<0.5?[0.94+sr(i*9)*0.05,0.62+sr(i*13)*0.20,0.24+sr(i*17)*0.10]:[1.0,0.90,0.65]);
-
-    // Fond inter-bras
-    {
-      const geo=makePoints(32000,
-        (i)=>{
-          const r=(4000+sr(i*3)*AND_R)*Math.sqrt(sr(i*5));
-          const a=sr(i*7)*Math.PI*2,x2=Math.cos(a)*r,z2=Math.sin(a)*r,y2=(sr(i*9)-0.5)*AND_T*2.5;
-          return[x2, y2*Math.cos(TILT)-z2*Math.sin(TILT), y2*Math.sin(TILT)+z2*Math.cos(TILT)];
-        },
-        (i)=>{const b=0.10+sr(i*13)*0.25;return[b*0.85,b*0.76,b*0.55];},
-        ()=>980+sr(Math.random()*9999)*420, 0.28
+      // Étoiles F/G — enveloppe
+      addPoints(g, 20000,
+        (i)=>{ const t=Math.pow(sr(i*7+so+5000),0.56); return andSpiral(a0,t,i*3+so+5000,0.20); },
+        (i)=> sr(i*5+so)<0.55 ? colorSunLike(i+so) : colorMainSeqA(i+so),
+        (i)=> 950+sr(i+so)*550
       );
-      g.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-    }
 
-    // Bulbe dense
-    {
-      const geo=makePoints(22000,
-        (i)=>{
-          const r=sr(i*3)*380000,th=sr(i*5)*Math.PI*2,ph=Math.acos(2*sr(i*7)-1);
-          const x2=Math.sin(ph)*Math.cos(th)*r,z2=Math.cos(ph)*r,y2=Math.sin(ph)*Math.sin(th)*r*0.38;
-          return[x2, y2*Math.cos(TILT)-z2*Math.sin(TILT), y2*Math.sin(TILT)+z2*Math.cos(TILT)];
-        },
-        (i)=>{const h=0.5+sr(i*11)*0.5;return[h*0.88,h*0.58,h*0.18];},
-        ()=>3000+sr(Math.random()*9999)*1200, 0.93
+      // Régions HII
+      addPoints(g, 5500,
+        (i)=>{ const t=sr(i*11+so)*0.82+0.06; return andSpiral(a0,t,i*7+so+8000,0.05); },
+        (i)=> sr(i*17+so)<0.58 ? colorHII(i+so) : colorHIIBlue(i+so),
+        (i)=> 3800+sr(i+so)*2200
       );
-      g.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-    }
-
-    // Halo
-    {
-      const geo=makePoints(6000,
-        (i)=>{const r=AND_R*(0.4+sr(i*3)*0.7),th=sr(i*5)*Math.PI*2,ph=Math.acos(2*sr(i*7)-1);return[Math.sin(ph)*Math.cos(th)*r,Math.sin(ph)*Math.sin(th)*r*0.55,Math.cos(ph)*r];},
-        (i)=>{const b=0.10+sr(i*11)*0.20;return[b*0.82,b*0.70,b*0.42];},
-        ()=>2400+sr(Math.random()*9999)*900, 0.17
-      );
-      g.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-    }
-
-    // Galaxies satellites M32 et M110
-    [[AND_R*.28,AND_R*.08,AND_R*.12,AND_R*.045,3500,[0.9,0.76,0.5]],
-     [-AND_R*.22,-AND_R*.10,AND_R*.18,AND_R*.075,4500,[0.72,0.65,0.48]]
-    ].forEach(([cx,cy,cz,rad,N2,col])=>{
-      const geo=makePoints(N2,(i)=>{const r=sr(i*3)*rad,a=sr(i*5)*Math.PI*2;return[cx+Math.cos(a)*r,cy+(sr(i*7)-0.5)*rad*0.4,cz+Math.sin(a)*r];},()=>col,()=>rad*0.065,0.65);
-      g.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
     });
 
-    return{group:g, AND_R, AND_T};
+    // Fond inter-bras — Population II orangée
+    addPoints(g, 40000,
+      (i)=>{
+        const r=(3000+sr(i*3+60000)*AND_R)*Math.sqrt(sr(i*5+60000));
+        const a=sr(i*7+60000)*Math.PI*2;
+        const x=Math.cos(a)*r, z=Math.sin(a)*r, y=(sr(i*9+60000)-0.5)*AND_T*2.5;
+        return [x, y*Math.cos(TILT)-z*Math.sin(TILT), y*Math.sin(TILT)+z*Math.cos(TILT)];
+      },
+      (i)=>{
+        const r=sr(i*13+60000);
+        if(r<0.65) return colorOldOrange(i+60000);
+        if(r<0.85) return colorSunLike(i+60000);
+        return colorRedGiant(i+60000);
+      },
+      (i)=> 680+sr(i+60000)*380
+    );
+
+    // Bulbe d'Andromède
+    addPoints(g, 28000,
+      (i)=>{
+        const r=sr(i*3+70000)*420000, th=sr(i*5+70000)*Math.PI*2, ph=Math.acos(2*sr(i*7+70000)-1);
+        const x=Math.sin(ph)*Math.cos(th)*r, z=Math.cos(ph)*r, y=Math.sin(ph)*Math.sin(th)*r*0.36;
+        return [x, y*Math.cos(TILT)-z*Math.sin(TILT), y*Math.sin(TILT)+z*Math.cos(TILT)];
+      },
+      (i)=>{
+        const h=0.5+sr(i*11+70000)*0.5;
+        return [h*0.95, h*0.62, h*0.22];
+      },
+      (i)=> 2800+sr(i+70000)*1400
+    );
+
+    // Halo d'Andromède
+    addPoints(g, 8000,
+      (i)=>{const r=AND_R*(0.35+sr(i*3+80000)*0.80), th=sr(i*5+80000)*Math.PI*2, ph=Math.acos(2*sr(i*7+80000)-1); return[Math.sin(ph)*Math.cos(th)*r, Math.sin(ph)*Math.sin(th)*r*0.50, Math.cos(ph)*r];},
+      (i)=>{const b=0.08+sr(i*11+80000)*0.18; return[b*0.80,b*0.72,b*0.58];},
+      (i)=> 2100+sr(i+80000)*1000
+    );
+
+    // Satellites M32 (elliptique compacte) et M110 (naine elliptique)
+    const SATELLITES = [
+      { cx:AND_R*0.26, cy:AND_R*0.10, cz:AND_R*0.13, r:AND_R*0.042, N:4000, col:[0.92,0.78,0.52] },
+      { cx:-AND_R*0.20, cy:-AND_R*0.12, cz:AND_R*0.20, r:AND_R*0.080, N:5500, col:[0.72,0.66,0.50] },
+    ];
+    SATELLITES.forEach(s=>{
+      addPoints(g, s.N,
+        (i)=>{const r=sr(i*3)*s.r, a=sr(i*5)*Math.PI*2; return[s.cx+Math.cos(a)*r, s.cy+(sr(i*7)-0.5)*s.r*0.38, s.cz+Math.sin(a)*r];},
+        ()=>s.col,
+        ()=>s.r*0.068
+      );
+    });
+
+    return { group:g, AND_R, AND_T };
   }
 
   // ── NUAGES DE MAGELLAN ────────────────────────────────────────
   function buildMagellanicClouds(parent){
-    const clouds=[
-      {pos:[-780000,-1150000,1150000],R:520000,N:9000,col:[0.92,0.85,0.58],label:'Grand Nuage de Magellan · 160 000 al'},
-      {pos:[-1150000,-950000,1260000],R:315000,N:4500,col:[0.80,0.80,0.68],label:'Petit Nuage de Magellan · 200 000 al'},
+    const clouds = [
+      { pos:[-780000,-1150000,1150000], R:520000, N:11000,
+        colFn:(i)=>{const r=sr(i*13); return r<0.5?colorYoungHot(i):colorSunLike(i);},
+        label:'Grand Nuage de Magellan  ·  160 000 al' },
+      { pos:[-1150000,-950000,1260000], R:315000, N:5500,
+        colFn:(i)=> colorSunLike(i),
+        label:'Petit Nuage de Magellan  ·  200 000 al' },
     ];
     return clouds.map(c=>{
       const g=new THREE.Group(); g.position.set(...c.pos); parent.add(g);
-      const geo=makePoints(c.N,(i)=>{const r=sr(i*3)*c.R,a=sr(i*5)*Math.PI*2;return[Math.cos(a)*r,(sr(i*7)-0.5)*c.R*0.62,Math.sin(a)*r];},()=>c.col,()=>c.R*0.066,0.74);
-      g.add(new THREE.Points(geo,SHADERS.makeGalaxyMaterial()));
-      const lc=document.createElement('canvas');lc.width=512;lc.height=56;
-      const lx=lc.getContext('2d');lx.font='15px monospace';lx.fillStyle='rgba(255,240,168,.68)';lx.textAlign='center';lx.fillText(c.label,256,38);
+      addPoints(g, c.N,
+        (i)=>{const r=sr(i*3)*c.R, a=sr(i*5)*Math.PI*2; return[Math.cos(a)*r,(sr(i*7)-0.5)*c.R*0.60,Math.sin(a)*r];},
+        c.colFn,
+        (i)=> c.R*0.062+sr(i)*c.R*0.025
+      );
+      const lc=document.createElement('canvas'); lc.width=512; lc.height=56;
+      const lx=lc.getContext('2d'); lx.font='14px monospace'; lx.fillStyle='rgba(255,238,168,.70)'; lx.textAlign='center'; lx.fillText(c.label,256,38);
       const ls=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(lc),transparent:true}));
-      ls.scale.set(c.R*1.5,c.R*0.20,1);ls.position.set(0,c.R*1.0,0);g.add(ls);
-      return{group:g,...c};
+      ls.scale.set(c.R*1.6,c.R*0.22,1); ls.position.set(0,c.R*1.05,0); g.add(ls);
+      return { group:g, ...c };
     });
   }
 
-  return{buildMilkyWay, buildSgrA, buildAndromeda, buildMagellanicClouds, GC, MWR, MWT, makePoints};
+  return { buildMilkyWay, buildSgrA, buildAndromeda, buildMagellanicClouds, GC, MWR, MWT, buildGeo, addPoints };
 })();
